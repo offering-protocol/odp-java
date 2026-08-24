@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+  <!-- These records defensively copy collection inputs into unmodifiable JDK collections. -->
+  <Match>
+    <Class name="~org\.offeringprotocol\.odp\.core\.(Collection|Offering.*|Page|ProblemDetails.*|SearchCapabilities.*|SearchRequests.*|ServiceDocument.*|ValidationIssue)" />
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2" />
+  </Match>
+  <Match>
+    <Class name="~org\.offeringprotocol\.odp\.directory\.DirectoryModels\$(Facets|PaymentFilter|SearchPage|Service|ServiceFilters|Suggestions)" />
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2" />
+  </Match>
+  <Match>
+    <Class name="org.offeringprotocol.odp.agent.ServiceInspection" />
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2" />
+  </Match>
+  <Match>
+    <Class name="~org\.offeringprotocol\.odp\.service\.OdpHttp(Request|Response)" />
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2" />
+  </Match>
+</FindBugsFilter>
