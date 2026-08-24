@@ -17,4 +17,18 @@
   <properties>
     <automatic.module.name>org.offeringprotocol.odp.core</automatic.module.name>
   </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.networknt</groupId>
+      <artifactId>json-schema-validator</artifactId>
+      <version>${json-schema-validator.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>tools.jackson.dataformat</groupId>
+          <artifactId>jackson-dataformat-yaml</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+  </dependencies>
 </project>
