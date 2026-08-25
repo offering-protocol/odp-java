@@ -36,6 +36,10 @@ jobs:
 
       - run: ./mvnw --batch-mode --no-transfer-progress verify
 
+      - name: Verify clean consumer
+        if: matrix.java == '17'
+        run: ./scripts/verify-consumer.sh
+
       - name: Run shared conformance harness
         run: ./scripts/run-conformance.sh
         env:

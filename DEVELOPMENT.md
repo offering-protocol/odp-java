@@ -45,6 +45,20 @@ conformance behavior there before implementing or changing it in Java.
 
 ## Releases
 
-The Maven reactor produces independently publishable artifacts under `org.offeringprotocol`.
-Release publication requires sources, Javadocs, signatures, provenance, shared conformance, and
-clean external-consumer verification.
+All publishable modules share the parent reactor's stable semantic version. A release publishes the
+`odp-java` parent and the `odp-core`, `odp-directory`, `odp-agent`, and `odp-service` artifacts to
+Maven Central. Examples and conformance tooling remain repository-only modules.
+
+The Release workflow runs manually from `main`. It requires the `org.offeringprotocol` Maven Central
+namespace and these repository secrets:
+
+- `CENTRAL_USERNAME`: Central Portal user-token username.
+- `CENTRAL_PASSWORD`: Central Portal user-token password.
+- `MAVEN_GPG_PRIVATE_KEY`: ASCII-armored private signing key.
+- `MAVEN_GPG_PASSPHRASE`: signing-key passphrase.
+
+Before publication, the workflow requires a stable project version, the complete Maven gate, shared
+Agent and Service conformance, Node.js interoperability, and isolated consumer compilation. It then
+creates the matching `v<version>` tag, publishes signed binary, source, Javadoc, and POM artifacts,
+attests the Maven artifacts, verifies Maven Central consumption, and creates the GitHub release with
+conformance evidence.
