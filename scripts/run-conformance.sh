@@ -3,7 +3,8 @@ set -eu
 
 specs_dir=${ODP_SPECS_DIR:-../odp-specs}
 output_dir=${ODP_CONFORMANCE_OUTPUT:-.conformance/reports}
-implementation_version=${ODP_JAVA_VERSION:-0.1.0}
+implementation_version=${ODP_JAVA_VERSION:-$(./mvnw --quiet --batch-mode --no-transfer-progress \
+  help:evaluate -Dexpression=revision -DforceStdout)}
 implementation_version=${implementation_version#v}
 
 ./mvnw --quiet --batch-mode --no-transfer-progress -DskipTests install

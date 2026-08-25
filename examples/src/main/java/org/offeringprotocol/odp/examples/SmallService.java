@@ -19,7 +19,6 @@ import org.offeringprotocol.odp.core.OdpJson;
 import org.offeringprotocol.odp.core.OdpOperation;
 import org.offeringprotocol.odp.core.Offering;
 import org.offeringprotocol.odp.core.Page;
-import org.offeringprotocol.odp.core.ServiceDocument;
 import org.offeringprotocol.odp.service.OdpHttpRequest;
 import org.offeringprotocol.odp.service.OdpHttpResponse;
 import org.offeringprotocol.odp.service.OdpService;
@@ -47,7 +46,11 @@ public final class SmallService {
                             .toList();
                     return new Page<>(null, Odp.VERSION, matches, null, Map.of());
                 }));
-        OdpService service = new OdpService(document(), endpoints);
+        OdpService service = OdpService.builder(
+                        "ODP Developer Resources", "Free resources for ODP integrators", "en", "/odp")
+                .keywords(List.of("agent", "developer", "documentation"))
+                .endpoints(endpoints)
+                .build();
         HttpServer server = HttpServer.create(
                 new InetSocketAddress("127.0.0.1", port), // NOPMD - The example must remain local-only.
                 0);
@@ -99,28 +102,6 @@ public final class SmallService {
             result.computeIfAbsent(name, ignored -> new ArrayList<>()).add(value);
         }
         return result;
-    }
-
-    private static ServiceDocument document() {
-        return new ServiceDocument(
-                Odp.VERSION,
-                "ODP Developer Resources",
-                "Free resources for ODP integrators",
-                null,
-                "en",
-                List.of("en"),
-                null,
-                List.of("agent", "developer", "documentation"),
-                null,
-                null,
-                new ServiceDocument.Http("/odp", null),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                Map.of());
     }
 
     private static Collection collection() {

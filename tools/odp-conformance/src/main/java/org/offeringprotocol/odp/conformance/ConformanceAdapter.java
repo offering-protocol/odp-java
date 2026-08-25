@@ -231,25 +231,10 @@ public final class ConformanceAdapter {
     }
 
     private static ServiceDocument document(List<OperationDescriptor> operations) {
-        return new ServiceDocument(
-                Odp.VERSION,
-                "Conformance Service",
-                "ODP conformance Service",
-                null,
-                "en",
-                List.of("en"),
-                null,
-                null,
-                null,
-                operations,
-                new ServiceDocument.Http("/odp", null),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                Map.of());
+        return ServiceDocument.builder(
+                        "Conformance Service", "ODP conformance Service", "en", new ServiceDocument.Http("/odp", null))
+                .operations(operations)
+                .build();
     }
 
     private static Evaluation parse(JsonNode test, String field, Parser parser) {
