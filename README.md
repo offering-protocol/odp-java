@@ -1,6 +1,7 @@
 # Offering Discovery Protocol for Java
 
 [![CI](https://github.com/offering-protocol/odp-java/actions/workflows/ci.yml/badge.svg)](https://github.com/offering-protocol/odp-java/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/org.offeringprotocol/odp-agent)](https://central.sonatype.com/namespace/org.offeringprotocol)
 [![Java](https://img.shields.io/badge/Java-17%2B-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
@@ -27,6 +28,37 @@ directory behavior.
 
 All artifacts use the Maven group `org.offeringprotocol` and require Java 17 or newer.
 
+## Installation
+
+Applications should depend on the module matching their role. Maven resolves its required ODP
+modules transitively.
+
+For an Agent application:
+
+```xml
+<dependency>
+  <groupId>org.offeringprotocol</groupId>
+  <artifactId>odp-agent</artifactId>
+  <version>0.1.0</version>
+</dependency>
+```
+
+For a Service integration:
+
+```xml
+<dependency>
+  <groupId>org.offeringprotocol</groupId>
+  <artifactId>odp-service</artifactId>
+  <version>0.1.0</version>
+</dependency>
+```
+
+Gradle applications use the same coordinates:
+
+```kotlin
+implementation("org.offeringprotocol:odp-agent:0.1.0")
+```
+
 ## Examples
 
 Run the small Service and Agent examples in separate terminals:
@@ -46,6 +78,12 @@ The Maven Wrapper provides the complete merge gate:
 
 ```sh
 ./mvnw verify
+```
+
+Verify the published module boundaries from an isolated consumer project with:
+
+```sh
+./scripts/verify-consumer.sh
 ```
 
 Format Java sources with:

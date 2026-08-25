@@ -1,0 +1,167 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: odp-java-release
+  cancel-in-progress: false
+
+permissions:
+  attestations: write
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    if: github.repository == 'offering-protocol/odp-java'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Releases must run from main." >&2
+            exit 1
+          fi
+          version=$(./mvnw --batch-mode --no-transfer-progress help:evaluate -Dexpression=project.version -DforceStdout -q)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "The project version must be a stable semantic version such as 0.1.0." >&2
+            exit 1
+          fi
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists." >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            tag_commit=$(git rev-list -n 1 "$tag")
+            if [[ "$tag_commit" != "$GITHUB_SHA" ]]; then
+              echo "Tag $tag does not identify the selected main commit." >&2
+              exit 1
+            fi
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          artifact="https://repo1.maven.org/maven2/org/offeringprotocol/odp-core/$version/odp-core-$version.pom"
+          if curl --fail --silent --show-error --head "$artifact" >/dev/null; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out ODP specifications
+        uses: actions/checkout@v7
+        with:
+          repository: offering-protocol/odp-specs
+          path: .conformance/odp-specs
+
+      - name: Check out Node.js reference implementation
+        uses: actions/checkout@v7
+        with:
+          repository: offering-protocol/odp-node
+          path: .conformance/odp-node
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          server-id: central
+          server-username-env-var: CENTRAL_USERNAME
+          server-password-env-var: CENTRAL_PASSWORD
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install Node.js reference implementation
+        run: pnpm --dir .conformance/odp-node install --frozen-lockfile
+
+      - name: Verify release
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+
+      - name: Run shared conformance harness
+        run: ./scripts/run-conformance.sh
+        env:
+          ODP_SPECS_DIR: .conformance/odp-specs
+
+      - name: Run Node.js interoperability
+        run: ./scripts/run-node-interoperability.sh
+        env:
+          ODP_NODE_DIR: .conformance/odp-node
+
+      - name: Verify clean consumer
+        run: ./scripts/verify-consumer.sh
+
+      - name: Publish Maven artifacts
+        if: steps.release.outputs.published != 'true'
+        run: ./mvnw --batch-mode --no-transfer-progress -Prelease -Dgpg.signer=bc deploy
+        env:
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          MAVEN_GPG_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+
+      - name: Attest Maven artifacts
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            odp-core/target/odp-core-${{ steps.release.outputs.version }}*.jar
+            odp-directory/target/odp-directory-${{ steps.release.outputs.version }}*.jar
+            odp-agent/target/odp-agent-${{ steps.release.outputs.version }}*.jar
+            odp-service/target/odp-service-${{ steps.release.outputs.version }}*.jar
+
+      - name: Wait for Maven Central availability
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          artifact="https://repo1.maven.org/maven2/org/offeringprotocol/odp-core/$VERSION/odp-core-$VERSION.pom"
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error --head "$artifact" >/dev/null; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Maven Central did not expose $artifact within 10 minutes." >&2
+          exit 1
+
+      - name: Verify Maven Central consumer
+        run: ./scripts/verify-consumer.sh
+        env:
+          ODP_CONSUMER_SOURCE: central
+
+      - name: Create release tag
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          if git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag --annotate "$TAG" --message "ODP Java $TAG" "$GITHUB_SHA"
+          git push origin "$TAG"
+
+      - name: Publish GitHub release
+        run: >-
+          gh release create "${{ steps.release.outputs.tag }}"
+          .conformance/reports/agent.json#odp-java-agent-conformance.json
+          .conformance/reports/service.json#odp-java-service-conformance.json
+          --generate-notes
+          --title "ODP Java ${{ steps.release.outputs.tag }}"
+          --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}
