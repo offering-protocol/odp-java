@@ -22,6 +22,18 @@ Format Java sources with:
 ./mvnw spotless:apply
 ```
 
+Run the shared protocol conformance harness with:
+
+```sh
+ODP_SPECS_DIR=/path/to/odp-specs ./scripts/run-conformance.sh
+```
+
+Run cross-language interoperability against the Node.js reference Service with:
+
+```sh
+ODP_NODE_DIR=/path/to/odp-node ./scripts/run-node-interoperability.sh
+```
+
 ## Module boundaries
 
 `odp-core` owns transport-independent protocol behavior. `odp-directory`, `odp-agent`, and

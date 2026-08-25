@@ -14,6 +14,7 @@ import org.offeringprotocol.odp.core.ServiceDocument;
 
 /** Framework-neutral ODP Service request handler. */
 public final class OdpService {
+    private static final int MAXIMUM_REQUEST_BYTES = 65_536;
     private static final String MEDIA_TYPE = "application/odp+json";
     private static final String GET = "GET";
     private static final String NOT_FOUND = "NOT_FOUND";
@@ -61,6 +62,11 @@ public final class OdpService {
 
     public OdpHttpResponse handle(OdpHttpRequest request) {
         try {
+            if (request.body() != null
+                    && request.body().getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                            > MAXIMUM_REQUEST_BYTES) {
+                return problem(413, "REQUEST_TOO_LARGE", "ODP request exceeds its byte limit");
+            }
             if (GET.equals(request.method()) && Odp.SERVICE_DOCUMENT_PATH.equals(request.path())) {
                 return json(200, serviceDocument);
             }

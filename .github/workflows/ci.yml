@@ -22,6 +22,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Check out ODP specifications
+        uses: actions/checkout@v7
+        with:
+          repository: offering-protocol/odp-specs
+          path: .conformance/odp-specs
+
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -29,3 +35,46 @@ jobs:
           cache: maven
 
       - run: ./mvnw --batch-mode --no-transfer-progress verify
+
+      - name: Run shared conformance harness
+        run: ./scripts/run-conformance.sh
+        env:
+          ODP_SPECS_DIR: .conformance/odp-specs
+
+      - name: Upload conformance reports
+        if: matrix.java == '17'
+        uses: actions/upload-artifact@v7
+        with:
+          name: odp-java-conformance
+          path: .conformance/reports/*.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Check out Node.js reference implementation
+        if: matrix.java == '17'
+        uses: actions/checkout@v7
+        with:
+          repository: offering-protocol/odp-node
+          path: .conformance/odp-node
+
+      - name: Set up pnpm
+        if: matrix.java == '17'
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.3
+
+      - name: Set up Node.js
+        if: matrix.java == '17'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install Node.js reference implementation
+        if: matrix.java == '17'
+        run: pnpm --dir .conformance/odp-node install --frozen-lockfile
+
+      - name: Run Node.js interoperability
+        if: matrix.java == '17'
+        run: ./scripts/run-node-interoperability.sh
+        env:
+          ODP_NODE_DIR: .conformance/odp-node

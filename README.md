@@ -27,6 +27,19 @@ directory behavior.
 
 All artifacts use the Maven group `org.offeringprotocol` and require Java 17 or newer.
 
+## Examples
+
+Run the small Service and Agent examples in separate terminals:
+
+```sh
+./scripts/run-small-service.sh
+./scripts/run-agent-example.sh
+```
+
+The Agent example explicitly uses a mock directory assembled from reachable Service origins. It
+then performs live Service inspection, Offering listing, and full Offering retrieval. See
+[examples/README.md](./examples/README.md) for the complete walkthrough.
+
 ## Development
 
 The Maven Wrapper provides the complete merge gate:
@@ -40,6 +53,20 @@ Format Java sources with:
 ```sh
 ./mvnw spotless:apply
 ```
+
+Generate Agent and Service conformance reports with:
+
+```sh
+ODP_SPECS_DIR=/path/to/odp-specs ./scripts/run-conformance.sh
+```
+
+Run the Java Agent against the Node.js reference Service with:
+
+```sh
+ODP_NODE_DIR=/path/to/odp-node ./scripts/run-node-interoperability.sh
+```
+
+The shared harness writes release evidence to `.conformance/reports/`.
 
 See [DEVELOPMENT.md](./DEVELOPMENT.md) for repository conventions and
 [`odp-specs`](https://github.com/offering-protocol/odp-specs) for the normative draft, schemas,
