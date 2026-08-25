@@ -40,21 +40,23 @@ public final class StaticCatalog {
         if (continuationKey.length < MINIMUM_KEY_BYTES) {
             throw new IllegalArgumentException("continuationKey must contain at least 32 bytes");
         }
+        List<Offering> catalogOfferings = List.copyOf(offerings);
+        List<Collection> catalogCollections = List.copyOf(collections);
         byte[] key = continuationKey.clone();
-        Map<String, Offering> offeringsById = unique(offerings, Offering::id, "Offering");
-        Map<String, Collection> collectionsById = unique(collections, Collection::id, "Collection");
+        Map<String, Offering> offeringsById = unique(catalogOfferings, Offering::id, "Offering");
+        Map<String, Collection> collectionsById = unique(catalogCollections, Collection::id, "Collection");
         Map<OdpOperation, OdpService.Endpoint> handlers = new LinkedHashMap<>();
         handlers.put(
                 OdpOperation.LIST_OFFERINGS,
-                endpoint(request -> page(offerings, request, StaticCatalog::terseOffering, key)));
+                endpoint(request -> page(catalogOfferings, request, StaticCatalog::terseOffering, key)));
         handlers.put(
                 OdpOperation.GET_OFFERING,
                 endpoint(request ->
                         represent(offeringsById.get(request.identifier()), request, StaticCatalog::terseOffering)));
-        if (!collections.isEmpty()) {
+        if (!catalogCollections.isEmpty()) {
             handlers.put(
                     OdpOperation.LIST_COLLECTIONS,
-                    endpoint(request -> page(collections, request, StaticCatalog::terseCollection, key)));
+                    endpoint(request -> page(catalogCollections, request, StaticCatalog::terseCollection, key)));
             handlers.put(
                     OdpOperation.GET_COLLECTION,
                     endpoint(request -> represent(
@@ -63,7 +65,7 @@ public final class StaticCatalog {
                 if (!collectionsById.containsKey(request.identifier())) {
                     return null;
                 }
-                List<Offering> matches = offerings.stream()
+                List<Offering> matches = catalogOfferings.stream()
                         .filter(offering -> offering.collectionIds() != null
                                 && offering.collectionIds().contains(request.identifier()))
                         .toList();

@@ -1,5 +1,6 @@
 package org.offeringprotocol.odp.service;
 
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -10,7 +11,9 @@ import org.offeringprotocol.odp.core.OdpJson;
 import org.offeringprotocol.odp.core.OdpOperation;
 import org.offeringprotocol.odp.core.OperationDescriptor;
 import org.offeringprotocol.odp.core.ProblemDetails;
+import org.offeringprotocol.odp.core.SearchCapabilities;
 import org.offeringprotocol.odp.core.ServiceDocument;
+import tools.jackson.databind.JsonNode;
 
 /** Framework-neutral ODP Service request handler. */
 public final class OdpService {
@@ -23,6 +26,10 @@ public final class OdpService {
     private final Map<OdpOperation, Endpoint> endpoints;
     private final String endpointBase;
 
+    public static Builder builder(String name, String description, String language, String endpointBase) {
+        return new Builder(name, description, language, endpointBase);
+    }
+
     public OdpService(ServiceDocument template, Map<OdpOperation, Endpoint> endpoints) {
         Objects.requireNonNull(template, "template");
         if (!endpoints.containsKey(OdpOperation.LIST_OFFERINGS) || !endpoints.containsKey(OdpOperation.GET_OFFERING)) {
@@ -34,30 +41,12 @@ public final class OdpService {
                 .sorted(Map.Entry.comparingByKey())
                 .map(entry -> new OperationDescriptor(entry.getValue().authentication(), entry.getKey()))
                 .toList();
-        this.serviceDocument = new ServiceDocument(
-                template.odpVersion(),
-                template.name(),
-                template.description(),
-                template.documentationUrl(),
-                template.language(),
-                template.localizations(),
-                template.mcp(),
-                template.keywords(),
-                template.branding(),
-                operations,
-                template.http(),
-                template.protocols(),
-                template.paymentOrigins(),
-                template.searchCapabilities(),
-                template.statusUrl(),
-                template.supportUrl(),
-                template.websiteUrl(),
-                template.additional());
+        this.serviceDocument = template.toBuilder().operations(operations).build();
         OdpJson.parseServiceDocument(OdpJson.write(this.serviceDocument));
     }
 
     public ServiceDocument document() {
-        return serviceDocument;
+        return serviceDocument.toBuilder().build();
     }
 
     public OdpHttpResponse handle(OdpHttpRequest request) {
@@ -112,7 +101,7 @@ public final class OdpService {
         if (GET.equals(request.method()) && "/collections".equals(path)) {
             return new Route(OdpOperation.LIST_COLLECTIONS, null);
         }
-        if ("POST".equals(request.method()) && "/collections/search".equals(path)) {
+        if (("POST".equals(request.method()) || GET.equals(request.method())) && "/collections/search".equals(path)) {
             return new Route(OdpOperation.SEARCH_COLLECTIONS, null);
         }
         if (GET.equals(request.method()) && parts.length == 3 && "collections".equals(parts[1])) {
@@ -127,7 +116,7 @@ public final class OdpService {
         if (GET.equals(request.method()) && "/offerings".equals(path)) {
             return new Route(OdpOperation.LIST_OFFERINGS, null);
         }
-        if ("POST".equals(request.method()) && "/offerings/search".equals(path)) {
+        if (("POST".equals(request.method()) || GET.equals(request.method())) && "/offerings/search".equals(path)) {
             return new Route(OdpOperation.SEARCH_OFFERINGS, null);
         }
         if (GET.equals(request.method()) && parts.length == 3 && "offerings".equals(parts[1])) {
@@ -174,6 +163,144 @@ public final class OdpService {
         public Endpoint {
             Objects.requireNonNull(authentication);
             Objects.requireNonNull(handler);
+        }
+    }
+
+    public static final class Builder {
+        private final String name;
+        private final String description;
+        private final String language;
+        private final String endpointBase;
+        private String configuredDocumentationUrl;
+        private List<String> configuredLocalizations;
+        private List<ServiceDocument.McpEndpoint> configuredMcp;
+        private List<String> configuredKeywords;
+        private ServiceDocument.Branding configuredBranding;
+        private ServiceDocument.OpenApi configuredOpenApi;
+        private ServiceDocument.Protocols configuredProtocols;
+        private List<String> configuredPaymentOrigins;
+        private SearchCapabilities configuredSearchCapabilities;
+        private String configuredStatusUrl;
+        private String configuredSupportUrl;
+        private String configuredWebsiteUrl;
+        private Map<String, JsonNode> configuredAdditional = Map.of();
+        private Map<OdpOperation, Endpoint> configuredEndpoints;
+        private Map<OdpOperation, AuthenticationRequirement> configuredOperationAuthentication = Map.of();
+
+        private Builder(String name, String description, String language, String endpointBase) {
+            this.name = Objects.requireNonNull(name, "name");
+            this.description = Objects.requireNonNull(description, "description");
+            this.language = Objects.requireNonNull(language, "language");
+            this.endpointBase = Objects.requireNonNull(endpointBase, "endpointBase");
+            this.configuredLocalizations = List.of(language);
+        }
+
+        public Builder documentationUrl(String value) {
+            this.configuredDocumentationUrl = value;
+            return this;
+        }
+
+        public Builder localizations(List<String> values) {
+            this.configuredLocalizations = List.copyOf(values);
+            return this;
+        }
+
+        public Builder mcp(List<ServiceDocument.McpEndpoint> values) {
+            this.configuredMcp = List.copyOf(values);
+            return this;
+        }
+
+        public Builder keywords(List<String> values) {
+            this.configuredKeywords = List.copyOf(values);
+            return this;
+        }
+
+        public Builder branding(ServiceDocument.Branding value) {
+            this.configuredBranding = value;
+            return this;
+        }
+
+        public Builder openApi(ServiceDocument.OpenApi value) {
+            this.configuredOpenApi = value;
+            return this;
+        }
+
+        public Builder protocols(ServiceDocument.Protocols value) {
+            this.configuredProtocols = value;
+            return this;
+        }
+
+        public Builder paymentOrigins(List<String> values) {
+            this.configuredPaymentOrigins = List.copyOf(values);
+            return this;
+        }
+
+        public Builder searchCapabilities(SearchCapabilities value) {
+            this.configuredSearchCapabilities = value;
+            return this;
+        }
+
+        public Builder statusUrl(String value) {
+            this.configuredStatusUrl = value;
+            return this;
+        }
+
+        public Builder supportUrl(String value) {
+            this.configuredSupportUrl = value;
+            return this;
+        }
+
+        public Builder websiteUrl(String value) {
+            this.configuredWebsiteUrl = value;
+            return this;
+        }
+
+        public Builder additional(Map<String, JsonNode> values) {
+            this.configuredAdditional = Map.copyOf(values);
+            return this;
+        }
+
+        public Builder endpoints(Map<OdpOperation, Endpoint> values) {
+            this.configuredEndpoints = Map.copyOf(values);
+            return this;
+        }
+
+        public Builder operationAuthentication(Map<OdpOperation, AuthenticationRequirement> values) {
+            this.configuredOperationAuthentication = Map.copyOf(values);
+            return this;
+        }
+
+        public OdpService build() {
+            if (configuredEndpoints == null) {
+                throw new IllegalStateException("endpoints must be configured");
+            }
+            ServiceDocument template = ServiceDocument.builder(
+                            name, description, language, new ServiceDocument.Http(endpointBase, configuredOpenApi))
+                    .documentationUrl(configuredDocumentationUrl)
+                    .localizations(configuredLocalizations)
+                    .mcp(configuredMcp)
+                    .keywords(configuredKeywords)
+                    .branding(configuredBranding)
+                    .operations(List.of())
+                    .protocols(configuredProtocols)
+                    .paymentOrigins(configuredPaymentOrigins)
+                    .searchCapabilities(configuredSearchCapabilities)
+                    .statusUrl(configuredStatusUrl)
+                    .supportUrl(configuredSupportUrl)
+                    .websiteUrl(configuredWebsiteUrl)
+                    .additional(configuredAdditional)
+                    .build();
+            Map<OdpOperation, Endpoint> configuredEndpoints = new EnumMap<>(OdpOperation.class);
+            configuredEndpoints.putAll(this.configuredEndpoints);
+            configuredOperationAuthentication.forEach((operation, requirement) -> {
+                Endpoint endpoint = configuredEndpoints.get(operation);
+                if (endpoint == null) {
+                    throw new IllegalArgumentException(
+                            "authentication requirement refers to an unconfigured operation: " + operation.value());
+                }
+                configuredEndpoints.put(operation, new Endpoint(requirement, endpoint.handler()));
+            });
+            return new OdpService(template, configuredEndpoints);
         }
     }
 

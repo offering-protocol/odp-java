@@ -1,6 +1,185 @@
 # ODP Agent
 
-Agent-oriented directory-to-Service discovery, catalog navigation, Offering enrichment, and Action
-discovery.
+Agent-oriented directory-to-Service discovery, live Service inspection, catalog navigation, and
+Offering discovery.
 
-`odp-agent` composes `odp-directory` and the transport-independent contracts in `odp-core`.
+Use `OdpAgent` for a bounded convenience search across multiple Services. Use `OdpServiceClient`
+when the application already knows a Service origin or needs explicit control over inspection,
+capability checks, Collections, Offerings, localization, and continuations.
+
+## Install
+
+```xml
+<dependency>
+  <groupId>org.offeringprotocol</groupId>
+  <artifactId>odp-agent</artifactId>
+  <version>0.1.1</version>
+</dependency>
+```
+
+```kotlin
+implementation("org.offeringprotocol:odp-agent:0.1.1")
+```
+
+The Agent module brings in `odp-directory` and `odp-core` transitively.
+
+## Discover Offerings across Services
+
+`OdpAgent` searches the canonical directory, inspects each selected Service, and searches Services
+that advertise `search-offerings`.
+
+```java
+DirectoryClient directory = DirectoryClient.create();
+OdpAgent agent = new OdpAgent(directory);
+
+for (OdpAgent.DiscoveryEvent event : agent.searchOfferings("plants", 10, 10)) {
+    if (event instanceof OdpAgent.OfferingEvent offering) {
+        consume(offering.service(), offering.offering());
+    } else if (event instanceof OdpAgent.IssueEvent issue) {
+        report(issue.service(), issue.message());
+    }
+}
+```
+
+The second argument limits directory Services and the third limits Offerings retained from each
+Service. Both must be from 1 through 100. Results preserve directory order. A failed Service emits
+an `IssueEvent`; it does not discard successful results from other Services.
+
+This convenience method does not reinterpret a Service that lacks `search-offerings` as a listing
+request. Applications that want that fallback should use `DirectoryClient`, inspect each Service,
+and explicitly choose search or list from the advertised operations.
+
+Use the sandbox directory by constructing the Agent with an explicitly selected client:
+
+```java
+OdpAgent agent = new OdpAgent(
+        DirectoryClient.create(DirectoryEnvironment.SANDBOX));
+```
+
+## Inspect one Service
+
+Creating a Service client retrieves `/.well-known/odp`, validates the document, and records the
+Service's advertised operations.
+
+```java
+OdpServiceClient service = OdpServiceClient.create(
+        URI.create("https://service.example"));
+
+ServiceInspection inspection = service.inspection();
+System.out.println(inspection.document().name());
+System.out.println(inspection.document().protocols());
+
+if (inspection.supports(OdpOperation.LIST_OFFERINGS)) {
+    Page<Offering> page = service.listOfferings("terse", 25, "en");
+    consume(page.items());
+}
+```
+
+The input may be the Service origin or another URL on that origin. Production Services must use
+HTTPS; loopback HTTP is accepted for local development. The client accepts at most five
+same-origin redirects and bounds Service Document and catalog response bodies.
+
+The Service Document is fetched once during `OdpServiceClient.create(...)` and retained for that
+client's lifetime. Recreate the client when the application needs a refreshed Service Document.
+The SDK does not maintain a persistent cache.
+
+## Navigate Collections and Offerings
+
+The client exposes only explicit network operations; it never calls an unadvertised operation.
+
+```java
+Page<Collection> collections = service.listCollections("terse", 25, "en");
+Collection collection = service.getCollection("indoor-plants", "full", "en");
+Page<Offering> members = service.listCollectionOfferings(
+        collection.id(), "terse", 25, "en");
+
+Page<Offering> offerings = service.listOfferings("terse", 25, "en");
+Offering details = service.getOffering("rubber-plant", "full", "en");
+```
+
+Representation is `terse` or `full`; passing `null` selects `terse`. Language is sent through
+`Accept-Language` when it is nonblank. Limits must be from 1 through 100.
+
+Search requests preserve the protocol's structured filters, Collection scope, sort identifier,
+and refinements:
+
+```java
+SearchRequests.Offerings request = new SearchRequests.Offerings(
+        Odp.VERSION,
+        "indoor plant",
+        null,
+        "indoor-plants",
+        null,
+        null,
+        null,
+        10);
+
+OfferingPage matches = service.searchOfferings(request, "terse", "en");
+```
+
+Call `searchCollections(...)` with `SearchRequests.Collections` for Collection search. Check
+`inspection.supports(...)` before invoking optional Collection or search operations; the client
+also rejects an unsupported call locally.
+
+## Continue a response
+
+Continuation values are opaque. Pass `next` unchanged to the matching continuation method:
+
+```java
+Page<Offering> page = service.listOfferings("terse", 25, "en");
+while (page.next() != null) {
+    page = service.continueOfferings(page.next(), "en");
+    consume(page.items());
+}
+```
+
+Use `continueCollections` for Collection pages. `OdpPagination` in Core can collect a bounded
+traversal and rejects loops after at most 16 pages. Applications following pages directly should
+apply their own total page and item limits.
+
+## Authentication and payment transport
+
+The default client performs anonymous HTTP requests. ODP advertises authentication requirements and
+payment protocols but does not implement AEP, MPP, or x402 credentials in this module.
+
+Supply `OdpTransport` when the application needs to control the HTTP stack. This complete example
+uses a dedicated JDK client without adding credentials:
+
+```java
+HttpClient httpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(10))
+        .followRedirects(HttpClient.Redirect.NEVER)
+        .build();
+
+OdpTransport transport = request -> httpClient.send(
+        request,
+        HttpResponse.BodyHandlers.ofByteArray());
+
+OdpServiceClient service = OdpServiceClient.create(
+        URI.create("https://service.example"),
+        transport);
+```
+
+The transport receives the complete ODP `HttpRequest` and must return an
+`HttpResponse<byte[]>`. An application that supports AEP, MPP, or x402 replaces the lambda with its
+protocol-aware transport and performs challenge handling before returning the final response. Keep
+credentials scoped to the intended Service and authenticated principal. `OdpAgent` accepts a
+`ServiceClientFactory` when federated discovery needs the same custom transport for each Service.
+
+Full Offerings expose their advertised Actions. The Java SDK does not invoke Actions or retrieve
+their supporting JSON Schema or OpenAPI documents. The application remains responsible for Action
+selection, user approval, authentication, payment, and invocation.
+
+## Errors
+
+Non-success Service responses throw `OdpRequestException`, which preserves the HTTP status,
+headers, and parsed ODP Problem Details when supplied. Invalid protocol documents throw
+`OdpValidationException`. Invalid local arguments use `IllegalArgumentException`; unsupported
+operations and transport-boundary failures use `IllegalStateException`.
+
+## Related documentation
+
+- [Directory integration](../odp-directory/README.md)
+- [Core models and validation](../odp-core/README.md)
+- [Runnable Agent example](../examples/README.md#agent-discovery)
+- [Maven Central artifact](https://central.sonatype.com/artifact/org.offeringprotocol/odp-agent)

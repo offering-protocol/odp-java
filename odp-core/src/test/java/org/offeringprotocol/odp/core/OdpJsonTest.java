@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URI;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class OdpJsonTest {
@@ -32,6 +33,26 @@ class OdpJsonTest {
         assertEquals("Example Service", document.name());
         assertTrue(document.additional().containsKey("example_extension"));
         assertTrue(OdpJson.write(document).contains("example_extension"));
+    }
+
+    @Test
+    void buildsAndRoundTripsServiceDocuments() {
+        List<OperationDescriptor> operations = List.of(
+                new OperationDescriptor(AuthenticationRequirement.NOT_REQUIRED, OdpOperation.GET_OFFERING),
+                new OperationDescriptor(AuthenticationRequirement.NOT_REQUIRED, OdpOperation.LIST_OFFERINGS));
+        ServiceDocument document = ServiceDocument.builder(
+                        "Example Service",
+                        "An ODP Service built by the Java API.",
+                        "en",
+                        new ServiceDocument.Http("/odp", null))
+                .keywords(List.of("example"))
+                .operations(operations)
+                .build();
+
+        ServiceDocument decoded = OdpJson.parseServiceDocument(OdpJson.write(document));
+
+        assertEquals(document, decoded);
+        assertEquals(List.of("en"), decoded.localizations());
     }
 
     @Test
