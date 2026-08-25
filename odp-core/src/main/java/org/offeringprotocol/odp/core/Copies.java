@@ -24,4 +24,8 @@ final class Copies {
                 .collect(Collectors.toUnmodifiableMap(
                         Map.Entry::getKey, entry -> entry.getValue().deepCopy()));
     }
+
+    static Map<String, JsonNode> nullableNodes(Map<String, JsonNode> value) {
+        return value == null ? null : nodes(value);
+    }
 }

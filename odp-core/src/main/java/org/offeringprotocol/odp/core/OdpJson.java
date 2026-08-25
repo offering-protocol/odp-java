@@ -10,8 +10,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JavaType;
 import tools.jackson.databind.json.JsonMapper;
@@ -28,15 +31,27 @@ public final class OdpJson {
     private OdpJson() {}
 
     public static ServiceDocument parseServiceDocument(String json) {
-        return parse(json, "service-document.schema.json", "Service Document", ServiceDocument.class);
+        ServiceDocument document =
+                parse(json, "service-document.schema.json", "Service Document", ServiceDocument.class);
+        validateLocalizations(document.language(), document.localizations(), "Service Document");
+        if (document.additional().containsKey("web_url")) {
+            throw semanticError("Service Document", "web_url is not permitted", "/web_url");
+        }
+        return document;
     }
 
     public static Collection parseCollection(String json) {
-        return parse(json, "collection.schema.json", "Collection", Collection.class);
+        Collection collection = parse(json, "collection.schema.json", "Collection", Collection.class);
+        validateLocalizations(collection.language(), collection.localizations(), "Collection");
+        validateImages(collection.images(), "Collection");
+        return collection;
     }
 
     public static Offering parseOffering(String json) {
-        return parse(json, "offering.schema.json", "Offering", Offering.class);
+        Offering offering = parse(json, "offering.schema.json", "Offering", Offering.class);
+        validateLocalizations(offering.language(), offering.localizations(), "Offering");
+        validateImages(offering.images(), "Offering");
+        return offering;
     }
 
     public static ProblemDetails parseProblemDetails(String json) {
@@ -88,6 +103,102 @@ public final class OdpJson {
                     List.of(new ValidationIssue("json", exception.getMessage(), Map.of(), "")),
                     exception);
         }
+    }
+
+    private static void validateLocalizations(String language, List<String> localizations, String documentType) {
+        Set<String> normalized = new HashSet<>();
+        if (localizations != null) {
+            for (int index = 0; index < localizations.size(); index++) {
+                String localization =
+                        normalizeLanguageTag(localizations.get(index), documentType, "/localizations/" + index);
+                if (!normalized.add(localization)) {
+                    throw semanticError(
+                            documentType,
+                            "localizations must be unique without regard to case",
+                            "/localizations/" + index);
+                }
+            }
+        }
+        if (language != null) {
+            String normalizedLanguage = normalizeLanguageTag(language, documentType, "/language");
+            if (localizations != null && !normalized.contains(normalizedLanguage)) {
+                throw semanticError(documentType, "language must appear in localizations", "/language");
+            }
+        }
+    }
+
+    private static String normalizeLanguageTag(String value, String documentType, String path) {
+        try {
+            String normalized = new Locale.Builder()
+                    .setLanguageTag(value)
+                    .build()
+                    .toLanguageTag()
+                    .toLowerCase(Locale.ROOT);
+            validateUniqueVariants(value, documentType, path);
+            return normalized;
+        } catch (java.util.IllformedLocaleException exception) {
+            throw semanticError(documentType, "language tag is invalid", path, exception);
+        }
+    }
+
+    private static void validateUniqueVariants(String value, String documentType, String path) {
+        String[] subtags = value.split("-");
+        int index = 1;
+        int extlangs = 0;
+        while (index < subtags.length && extlangs < 3 && isLetters(subtags[index], 3)) {
+            index++;
+            extlangs++;
+        }
+        if (index < subtags.length && isLetters(subtags[index], 4)) {
+            index++;
+        }
+        if (index < subtags.length && (isLetters(subtags[index], 2) || isDigits(subtags[index], 3))) {
+            index++;
+        }
+        Set<String> variants = new HashSet<>();
+        while (index < subtags.length && isVariant(subtags[index])) {
+            if (!variants.add(subtags[index].toLowerCase(Locale.ROOT))) {
+                throw semanticError(documentType, "language tag contains a duplicate variant", path);
+            }
+            index++;
+        }
+    }
+
+    private static boolean isVariant(String value) {
+        return (value.length() >= 5 && value.length() <= 8 && value.chars().allMatch(Character::isLetterOrDigit))
+                || (value.length() == 4
+                        && Character.isDigit(value.charAt(0))
+                        && value.chars().allMatch(Character::isLetterOrDigit));
+    }
+
+    private static boolean isLetters(String value, int length) {
+        return value.length() == length && value.chars().allMatch(Character::isLetter);
+    }
+
+    private static boolean isDigits(String value, int length) {
+        return value.length() == length && value.chars().allMatch(Character::isDigit);
+    }
+
+    private static void validateImages(List<ResourceImage> images, String documentType) {
+        if (images == null) {
+            return;
+        }
+        Set<String> sources = new HashSet<>();
+        for (int index = 0; index < images.size(); index++) {
+            if (!sources.add(images.get(index).src())) {
+                throw semanticError(documentType, "image sources must be unique", "/images/" + index + "/src");
+            }
+        }
+    }
+
+    private static OdpValidationException semanticError(String documentType, String message, String path) {
+        return semanticError(documentType, message, path, null);
+    }
+
+    private static OdpValidationException semanticError(
+            String documentType, String message, String path, Throwable cause) {
+        return new OdpValidationException(
+                documentType, List.of(new ValidationIssue("semantic", message, Map.of(), path)), cause);
     }
 
     private static void validate(String json, String schemaName, String documentType) {

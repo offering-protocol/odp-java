@@ -29,7 +29,7 @@ public record Offering(
         images = Copies.list(images);
         localizations = Copies.list(localizations);
         collectionIds = Copies.list(collectionIds);
-        attributes = Copies.nodes(attributes);
+        attributes = Copies.nullableNodes(attributes);
         actions = Copies.list(actions);
         detailFields = Copies.list(detailFields);
         additional = Copies.nodes(additional);

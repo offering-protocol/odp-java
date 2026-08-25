@@ -43,6 +43,37 @@ class OdpServiceTest {
         assertTrue(detail.body().contains("plant-1"));
     }
 
+    @Test
+    void boundsRequestBodies() {
+        Offering offering = new Offering(
+                null,
+                Odp.VERSION,
+                "plant-1",
+                "Rubber Plant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Map.of());
+        OdpService service = new OdpService(template(), StaticCatalog.create(List.of(offering), List.of()));
+
+        OdpHttpResponse boundary =
+                service.handle(new OdpHttpRequest("GET", "/.well-known/odp", Map.of(), Map.of(), "a".repeat(65_536)));
+        OdpHttpResponse exceeded =
+                service.handle(new OdpHttpRequest("GET", "/.well-known/odp", Map.of(), Map.of(), "a".repeat(65_537)));
+
+        assertEquals(200, boundary.status());
+        assertEquals(413, exceeded.status());
+        assertTrue(exceeded.body().contains("REQUEST_TOO_LARGE"));
+    }
+
     private static ServiceDocument template() {
         return new ServiceDocument(
                 Odp.VERSION,

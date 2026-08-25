@@ -1,4 +1,5 @@
 .DS_Store
+.conformance/
 .idea/
 .project
 .classpath
