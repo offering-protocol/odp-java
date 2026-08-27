@@ -48,7 +48,7 @@ public final class StaticCatalog {
         Map<OdpOperation, OdpService.Endpoint> handlers = new LinkedHashMap<>();
         handlers.put(
                 OdpOperation.LIST_OFFERINGS,
-                endpoint(request -> page(catalogOfferings, request, StaticCatalog::terseOffering, key)));
+                endpoint(request -> page(catalogOfferings, request, StaticCatalog::terseOfferingItem, key)));
         handlers.put(
                 OdpOperation.GET_OFFERING,
                 endpoint(request ->
@@ -56,7 +56,7 @@ public final class StaticCatalog {
         if (!catalogCollections.isEmpty()) {
             handlers.put(
                     OdpOperation.LIST_COLLECTIONS,
-                    endpoint(request -> page(catalogCollections, request, StaticCatalog::terseCollection, key)));
+                    endpoint(request -> page(catalogCollections, request, StaticCatalog::terseCollectionItem, key)));
             handlers.put(
                     OdpOperation.GET_COLLECTION,
                     endpoint(request -> represent(
@@ -69,7 +69,7 @@ public final class StaticCatalog {
                         .filter(offering -> offering.collectionIds() != null
                                 && offering.collectionIds().contains(request.identifier()))
                         .toList();
-                return page(matches, request, StaticCatalog::terseOffering, key);
+                return page(matches, request, StaticCatalog::terseOfferingItem, key);
             }));
         }
         return Map.copyOf(handlers);
@@ -170,9 +170,17 @@ public final class StaticCatalog {
     }
 
     private static Offering terseOffering(Offering value) {
+        return terseOffering(value, false);
+    }
+
+    private static Offering terseOfferingItem(Offering value) {
+        return terseOffering(value, true);
+    }
+
+    private static Offering terseOffering(Offering value, boolean embedded) {
         return new Offering(
                 value.authExpands(),
-                null,
+                embedded ? null : value.odpVersion(),
                 value.id(),
                 value.name(),
                 value.description(),
@@ -190,9 +198,17 @@ public final class StaticCatalog {
     }
 
     private static Collection terseCollection(Collection value) {
+        return terseCollection(value, false);
+    }
+
+    private static Collection terseCollectionItem(Collection value) {
+        return terseCollection(value, true);
+    }
+
+    private static Collection terseCollection(Collection value, boolean embedded) {
         return new Collection(
                 value.authExpands(),
-                null,
+                embedded ? null : value.odpVersion(),
                 value.id(),
                 value.name(),
                 value.description(),

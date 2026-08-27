@@ -130,9 +130,8 @@ and indexes instead of materializing the catalog in memory. See the
 
 ## Protocol composition
 
-ODP advertises AEP enrollment, operation authentication requirements, MPP and x402 payment
-support, and Offering Actions. It does not duplicate those protocols' credential or payment
-semantics.
+ODP advertises enrollment, payment, and trust protocols, operation authentication requirements, and
+Offering Actions. It does not duplicate those protocols' credential, payment, or trust semantics.
 
 The default Java Agent transport performs anonymous HTTP requests. Applications inject an
 `OdpTransport` when catalog requests need AEP credentials, MPP, x402, or application-specific

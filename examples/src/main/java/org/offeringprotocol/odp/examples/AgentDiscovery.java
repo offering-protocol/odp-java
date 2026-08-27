@@ -25,7 +25,7 @@ public final class AgentDiscovery {
             var page = service.listOfferings("terse", null, null);
             print("Terse Offering list", page);
             for (var offering : page.items()) {
-                print("Full Offering " + offering.id(), service.getOffering(offering.id(), "full", null));
+                print("Full Offering " + offering.id(), service.getOfferingDetails(offering.id(), null));
             }
         }
     }

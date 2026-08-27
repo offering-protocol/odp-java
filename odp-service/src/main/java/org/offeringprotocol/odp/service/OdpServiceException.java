@@ -12,6 +12,12 @@ public final class OdpServiceException extends RuntimeException {
         this.problemCode = code;
     }
 
+    public OdpServiceException(int status, String code, String message, Throwable cause) {
+        super(message, cause);
+        this.responseStatus = status;
+        this.problemCode = code;
+    }
+
     public int status() {
         return responseStatus;
     }

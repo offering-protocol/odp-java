@@ -7,7 +7,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -22,23 +24,35 @@ import org.offeringprotocol.odp.core.OperationDescriptor;
 import org.offeringprotocol.odp.core.Page;
 import org.offeringprotocol.odp.core.ProblemDetails;
 import org.offeringprotocol.odp.core.SearchRequests;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 
 /** Validated ODP Service inspection and catalog client. */
 public final class OdpServiceClient {
     private static final int MAXIMUM_BYTES = 2_097_152;
     private static final int MAXIMUM_REDIRECTS = 5;
     private static final String GET = "GET";
+    private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final HttpClient DEFAULT_HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
     private final OdpTransport transport;
+    private final ActionResolver actionResolver;
+    private final AttributeSchemaResolver schemaResolver;
     private final String serviceOrigin;
     private final ServiceInspection serviceInspection;
 
-    private OdpServiceClient(OdpTransport transport, String serviceOrigin, ServiceInspection inspection) {
+    private OdpServiceClient(
+            OdpTransport transport,
+            ActionResolver actionResolver,
+            AttributeSchemaResolver schemaResolver,
+            String serviceOrigin,
+            ServiceInspection inspection) {
         this.transport = transport;
+        this.actionResolver = actionResolver;
+        this.schemaResolver = schemaResolver;
         this.serviceOrigin = serviceOrigin;
         this.serviceInspection = inspection;
     }
@@ -49,8 +63,16 @@ public final class OdpServiceClient {
     }
 
     public static OdpServiceClient create(URI serviceUri, OdpTransport transport) {
+        return create(
+                serviceUri,
+                transport,
+                request -> DEFAULT_HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray()));
+    }
+
+    public static OdpServiceClient create(URI serviceUri, OdpTransport transport, OdpTransport supportingTransport) {
         Objects.requireNonNull(serviceUri, "serviceUri");
         Objects.requireNonNull(transport, "transport");
+        Objects.requireNonNull(supportingTransport, "supportingTransport");
         String origin = OdpUris.deriveServiceOrigin(serviceUri);
         URI documentUri = URI.create(origin).resolve(Odp.SERVICE_DOCUMENT_PATH);
         String json = request(transport, documentUri, GET, null, null, 524_288);
@@ -59,8 +81,14 @@ public final class OdpServiceClient {
         for (OperationDescriptor operation : document.operations()) {
             operations.put(operation.name(), operation);
         }
+        SupportingJsonClient supportingClient = new SupportingJsonClient(supportingTransport);
+        AttributeSchemaResolver schemaResolver = new AttributeSchemaResolver(supportingClient);
         return new OdpServiceClient(
-                transport, origin, new ServiceInspection(origin, documentUri, document, Map.copyOf(operations)));
+                transport,
+                new ActionResolver(supportingClient, schemaResolver),
+                schemaResolver,
+                origin,
+                new ServiceInspection(origin, documentUri, document, Map.copyOf(operations)));
     }
 
     public ServiceInspection inspection() {
@@ -103,6 +131,47 @@ public final class OdpServiceClient {
     public Offering getOffering(String id, String representation, String language) {
         return OdpJson.parseOffering(
                 requestOperation(OdpOperation.GET_OFFERING, id, representation, null, language, null));
+    }
+
+    public OfferingDetails getOfferingDetails(String id, String language) {
+        Offering offering = getOffering(id, "full", language);
+        String serviceOpenApiUrl = serviceInspection.document().http().openapi() == null
+                ? null
+                : serviceInspection.document().http().openapi().url();
+        ActionResolver.NormalizedActions normalized =
+                actionResolver.normalize(offering.actions(), serviceOrigin, serviceOpenApiUrl);
+        List<OfferingIssue> issues = new ArrayList<>(normalized.issues());
+        Offering safeOffering = offering;
+        tools.jackson.databind.JsonNode attributeSchema = null;
+        if (offering.schema() != null) {
+            try {
+                URI reference =
+                        OdpUris.resolveResourceReference(offering.schema().url(), serviceOrigin);
+                AttributeSchemaResolver.ResolvedSchema resolved = schemaResolver.resolve(reference);
+                attributeSchema = resolved.document();
+                if (offering.attributes() != null && !resolved.validates(offering.attributes())) {
+                    safeOffering = withoutAttributes(offering);
+                    issues.add(new OfferingIssue(
+                            OfferingIssue.Scope.ATTRIBUTES,
+                            "Offering attributes do not match their Attribute Schema",
+                            null));
+                }
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                safeOffering = withoutAttributes(offering);
+                issues.add(new OfferingIssue(OfferingIssue.Scope.ATTRIBUTE_SCHEMA, exception.getMessage(), null));
+            }
+        }
+        return new OfferingDetails(safeOffering, attributeSchema, normalized.actions(), issues);
+    }
+
+    public ResolvedAction resolveAction(String offeringId, String actionId, String language) {
+        OfferingDetails details = getOfferingDetails(offeringId, language);
+        DiscoveredAction action = details.actions().stream()
+                .filter(candidate -> candidate.id().equals(actionId))
+                .findFirst()
+                .orElseThrow(
+                        () -> new IllegalArgumentException("ODP Offering does not expose usable Action " + actionId));
+        return actionResolver.resolve(action, serviceOrigin);
     }
 
     public Page<Collection> continueCollections(String next, String language) {
@@ -155,6 +224,16 @@ public final class OdpServiceClient {
     private static void requireSummary(String identifier, String name, String resourceType) {
         if (!OdpUris.isLocalResourceIdentifier(identifier) || name == null || name.isBlank()) {
             throw new IllegalArgumentException(resourceType + " summary is invalid");
+        }
+    }
+
+    private static Offering withoutAttributes(Offering offering) {
+        try {
+            var document = JSON.readTree(OdpJson.write(offering)).asObject();
+            document.remove("attributes");
+            return OdpJson.parseOffering(document.toString());
+        } catch (JacksonException exception) {
+            throw new IllegalStateException("Unable to normalize ODP Offering", exception);
         }
     }
 
