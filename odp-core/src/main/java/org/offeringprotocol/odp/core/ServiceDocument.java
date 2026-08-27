@@ -372,10 +372,16 @@ public final class ServiceDocument {
 
     public record McpEndpoint(String description, String name, String type, String url) {}
 
-    public record Protocols(List<EnrollmentProtocol> enrollment, List<PaymentProtocol> payments) {
+    public record Protocols(
+            List<EnrollmentProtocol> enrollment, List<PaymentProtocol> payments, List<TrustProtocol> trust) {
         public Protocols {
             enrollment = Copies.list(enrollment);
             payments = Copies.list(payments);
+            trust = Copies.list(trust);
+        }
+
+        public Protocols(List<EnrollmentProtocol> enrollment, List<PaymentProtocol> payments) {
+            this(enrollment, payments, null);
         }
     }
 
@@ -386,4 +392,6 @@ public final class ServiceDocument {
             options = Copies.list(options);
         }
     }
+
+    public record TrustProtocol(String name) {}
 }

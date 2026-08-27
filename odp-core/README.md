@@ -106,6 +106,9 @@ stop before invoking the next loader.
 MPP or x402, such as `INFLOW`, `SOLANA`, or `BASE`. These values summarize compatibility for
 discovery and filtering. Live MPP and x402 responses remain authoritative for exact payment terms.
 
+`ServiceDocument.TrustProtocol` represents advertised trust support. A Service that accepts Visa
+Trusted Agent Protocol requests declares a single `tap` descriptor in `protocols.trust`.
+
 ## Related documentation
 
 - [Agent integration](../odp-agent/README.md)

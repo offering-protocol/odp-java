@@ -121,6 +121,46 @@ Call `searchCollections(...)` with `SearchRequests.Collections` for Collection s
 `inspection.supports(...)` before invoking optional Collection or search operations; the client
 also rejects an unsupported call locally.
 
+### Interpret a full Offering
+
+Use `getOfferingDetails(...)` when the application needs the Offering's Service-defined attributes
+or Actions:
+
+```java
+OfferingDetails details = service.getOfferingDetails("rubber-plant", "en");
+
+if (details.attributeSchema() != null) {
+    consume(details.offering().attributes(), details.attributeSchema());
+}
+for (DiscoveredAction action : details.actions()) {
+    System.out.println(action.id() + " " + action.rel());
+}
+for (OfferingIssue issue : details.issues()) {
+    report(issue.scope(), issue.message());
+}
+```
+
+The Agent retrieves the complete bounded JSON Schema Draft 2020-12 graph, bundles external `$ref`
+documents into the returned schema, and validates full Offering attributes. `$dynamicRef` is limited
+to fragment references such as `#node`. An unavailable, unsupported, or non-matching schema removes
+only the uninterpretable attributes and produces a scoped issue; the Offering remains usable.
+
+Actions are normalized to absolute compact HTTP or OpenAPI targets. Resolve the supporting document
+for one explicitly selected Action without invoking it:
+
+```java
+ResolvedAction action = service.resolveAction("rubber-plant", "purchase", "en");
+
+if (action.requestSchema() != null) {
+    prepareBody(action.action().http(), action.requestSchema());
+} else if (action.openApiDocument() != null) {
+    prepareOperation(action.action().openapi(), action.operation());
+}
+```
+
+Compact HTTP request schemas follow the same bounded resolution rules as Attribute Schemas. OpenAPI
+targets require a JSON OpenAPI 3.1 document containing exactly one matching `operationId`.
+
 ## Continue a response
 
 Continuation values are opaque. Pass `next` unchanged to the matching continuation method:
@@ -166,9 +206,20 @@ protocol-aware transport and performs challenge handling before returning the fi
 credentials scoped to the intended Service and authenticated principal. `OdpAgent` accepts a
 `ServiceClientFactory` when federated discovery needs the same custom transport for each Service.
 
-Full Offerings expose their advertised Actions. The Java SDK does not invoke Actions or retrieve
-their supporting JSON Schema or OpenAPI documents. The application remains responsible for Action
-selection, user approval, authentication, payment, and invocation.
+Attribute Schema, Action request-schema, and OpenAPI requests use the default anonymous transport so
+credentials added by the catalog transport are not forwarded to supporting-resource origins. Supply
+an explicit anonymous supporting transport as the third argument when the application needs to
+control that network boundary:
+
+```java
+OdpServiceClient service = OdpServiceClient.create(
+        URI.create("https://service.example"),
+        protocolAwareTransport,
+        anonymousSupportingTransport);
+```
+
+Supporting-document resolution does not invoke an Action. The application remains responsible for
+Action selection, user approval, authentication, payment, request construction, and invocation.
 
 ## Errors
 

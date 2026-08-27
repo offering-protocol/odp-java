@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.offeringprotocol.odp.core.AuthenticationRequirement;
+import org.offeringprotocol.odp.core.Collection;
 import org.offeringprotocol.odp.core.Odp;
 import org.offeringprotocol.odp.core.OdpOperation;
 import org.offeringprotocol.odp.core.Offering;
@@ -51,7 +52,12 @@ class OdpServiceTest {
         assertTrue(document.body().contains("list-offerings"));
         assertTrue(document.body().contains("\"authentication\":\"required\""));
         assertTrue(list.body().contains("Rubber Plant"));
+        assertEquals(2, occurrences(list.body(), "\"odp_version\":\"1.0\""));
         assertTrue(detail.body().contains("plant-1"));
+        assertEquals(1, occurrences(detail.body(), "\"odp_version\":\"1.0\""));
+
+        OdpHttpResponse terseList = service.handle(request("GET", "/odp/offerings", Map.of()));
+        assertEquals(1, occurrences(terseList.body(), "\"odp_version\":\"1.0\""));
     }
 
     @Test
@@ -128,7 +134,55 @@ class OdpServiceTest {
         assertTrue(continuation.body().contains("Continued result"));
     }
 
+    @Test
+    void rejectsInvalidCatalogResponses() {
+        Map<OdpOperation, OdpService.Endpoint> endpoints = new java.util.EnumMap<>(StaticCatalog.create(
+                List.of(offering("plant-1", "Rubber Plant")), List.of(collection("plants", null))));
+        endpoints.put(
+                OdpOperation.GET_OFFERING,
+                new OdpService.Endpoint(AuthenticationRequirement.NOT_REQUIRED, request -> Map.of("name", "Invalid")));
+        OdpService service = new OdpService(template(), endpoints);
+
+        OdpHttpResponse response = service.handle(request("GET", "/odp/offerings/plant-1", Map.of()));
+
+        assertEquals(500, response.status());
+        assertTrue(response.body().contains("INTERNAL_ERROR"));
+
+        endpoints.put(
+                OdpOperation.GET_OFFERING,
+                new OdpService.Endpoint(AuthenticationRequirement.NOT_REQUIRED, request -> offeringWithAction()));
+        service = new OdpService(template(), endpoints);
+        assertEquals(
+                500,
+                service.handle(request("GET", "/odp/offerings/plant-1", Map.of()))
+                        .status());
+
+        endpoints.put(
+                OdpOperation.GET_OFFERING,
+                new OdpService.Endpoint(
+                        AuthenticationRequirement.NOT_REQUIRED,
+                        request -> offering("plant-1", "Rubber Plant", List.of("/description"))));
+        endpoints.put(
+                OdpOperation.GET_COLLECTION,
+                new OdpService.Endpoint(
+                        AuthenticationRequirement.NOT_REQUIRED,
+                        request -> collection("plants", List.of("/description"))));
+        service = new OdpService(template(), endpoints);
+        assertEquals(
+                500,
+                service.handle(request("GET", "/odp/offerings/plant-1", Map.of("representation", List.of("full"))))
+                        .status());
+        assertEquals(
+                500,
+                service.handle(request("GET", "/odp/collections/plants", Map.of("representation", List.of("full"))))
+                        .status());
+    }
+
     private static Offering offering(String id, String name) {
+        return offering(id, name, null);
+    }
+
+    private static Offering offering(String id, String name, List<String> detailFields) {
         return new Offering(
                 null,
                 Odp.VERSION,
@@ -144,8 +198,41 @@ class OdpServiceTest {
                 null,
                 null,
                 null,
-                null,
+                detailFields,
                 Map.of());
+    }
+
+    private static Offering offeringWithAction() {
+        Offering.Action action = new Offering.Action(
+                AuthenticationRequirement.NOT_REQUIRED,
+                "purchase",
+                "purchase",
+                null,
+                new Offering.HttpTarget("/purchase", "POST", null, null),
+                null);
+        Offering value = offering("plant-1", "Rubber Plant");
+        return new Offering(
+                value.authExpands(),
+                value.odpVersion(),
+                value.id(),
+                value.name(),
+                value.description(),
+                value.images(),
+                value.language(),
+                value.localizations(),
+                value.webUrl(),
+                value.collectionIds(),
+                value.price(),
+                value.schema(),
+                value.attributes(),
+                List.of(action),
+                value.detailFields(),
+                value.additional());
+    }
+
+    private static Collection collection(String id, List<String> detailFields) {
+        return new Collection(
+                null, Odp.VERSION, id, "Plants", null, null, null, null, null, null, null, detailFields, Map.of());
     }
 
     private static ServiceDocument template() {
@@ -158,5 +245,9 @@ class OdpServiceTest {
 
     private static OdpHttpRequest request(String method, String path, Map<String, List<String>> query) {
         return new OdpHttpRequest(method, path, query, Map.of(), null);
+    }
+
+    private static int occurrences(String value, String token) {
+        return value.split(java.util.regex.Pattern.quote(token), -1).length - 1;
     }
 }

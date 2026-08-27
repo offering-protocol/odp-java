@@ -53,3 +53,4 @@ sort-definition-page.schema.json
 sort-definition.schema.json
 sort-key.schema.json
 top-level-document.schema.json
+trust-protocol.schema.json

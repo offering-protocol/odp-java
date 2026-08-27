@@ -6,9 +6,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import org.offeringprotocol.odp.core.AuthenticationRequirement;
+import org.offeringprotocol.odp.core.Collection;
 import org.offeringprotocol.odp.core.Odp;
 import org.offeringprotocol.odp.core.OdpJson;
 import org.offeringprotocol.odp.core.OdpOperation;
+import org.offeringprotocol.odp.core.OdpValidationException;
+import org.offeringprotocol.odp.core.Offering;
 import org.offeringprotocol.odp.core.OperationDescriptor;
 import org.offeringprotocol.odp.core.ProblemDetails;
 import org.offeringprotocol.odp.core.SearchCapabilities;
@@ -20,6 +23,7 @@ public final class OdpService {
     private static final int MAXIMUM_REQUEST_BYTES = 65_536;
     private static final String MEDIA_TYPE = "application/odp+json";
     private static final String GET = "GET";
+    private static final String INTERNAL_ERROR = "INTERNAL_ERROR";
     private static final String NOT_FOUND = "NOT_FOUND";
 
     private final ServiceDocument serviceDocument;
@@ -84,11 +88,52 @@ public final class OdpService {
             if (response == null) {
                 return problem(404, NOT_FOUND, "ODP resource not found");
             }
+            validateResponse(route.operation(), response, representation);
             return json(200, response);
         } catch (OdpServiceException exception) {
             return problem(exception.status(), exception.code(), exception.getMessage());
         } catch (IllegalArgumentException exception) {
             return problem(400, "INVALID_REQUEST", exception.getMessage());
+        }
+    }
+
+    private static void validateResponse(OdpOperation operation, Object response, String representation) {
+        String json = OdpJson.write(response);
+        try {
+            switch (operation) {
+                case GET_COLLECTION -> validateCollection(OdpJson.parseCollection(json), representation);
+                case GET_OFFERING -> validateOffering(OdpJson.parseOffering(json), representation);
+                case LIST_COLLECTIONS, SEARCH_COLLECTIONS ->
+                    OdpJson.parsePage(json, Collection.class)
+                            .items()
+                            .forEach(item -> validateCollection(item, representation));
+                case LIST_COLLECTION_OFFERINGS, LIST_OFFERINGS ->
+                    OdpJson.parsePage(json, Offering.class)
+                            .items()
+                            .forEach(item -> validateOffering(item, representation));
+                case SEARCH_OFFERINGS ->
+                    OdpJson.parseOfferingSearchResponse(json)
+                            .items()
+                            .forEach(item -> validateOffering(item, representation));
+            }
+        } catch (OdpValidationException exception) {
+            throw new OdpServiceException(500, INTERNAL_ERROR, "ODP catalog returned an invalid response", exception);
+        }
+    }
+
+    private static void validateOffering(Offering offering, String representation) {
+        if ("terse".equals(representation) && offering.actions() != null) {
+            throw new OdpServiceException(500, INTERNAL_ERROR, "ODP catalog returned Actions in a Terse Offering");
+        }
+        if ("full".equals(representation) && offering.detailFields() != null) {
+            throw new OdpServiceException(500, INTERNAL_ERROR, "ODP catalog returned detail_fields in a Full Offering");
+        }
+    }
+
+    private static void validateCollection(Collection collection, String representation) {
+        if ("full".equals(representation) && collection.detailFields() != null) {
+            throw new OdpServiceException(
+                    500, INTERNAL_ERROR, "ODP catalog returned detail_fields in a Full Collection");
         }
     }
 

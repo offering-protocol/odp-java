@@ -4,13 +4,24 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.net.ssl.SSLSession;
+import org.offeringprotocol.odp.agent.OdpServiceClient;
+import org.offeringprotocol.odp.agent.OdpTransport;
+import org.offeringprotocol.odp.agent.OfferingDetails;
+import org.offeringprotocol.odp.agent.OfferingIssue;
 import org.offeringprotocol.odp.core.AuthenticationRequirement;
 import org.offeringprotocol.odp.core.Odp;
 import org.offeringprotocol.odp.core.OdpJson;
@@ -31,6 +42,8 @@ import tools.jackson.databind.json.JsonMapper;
 public final class ConformanceAdapter {
     private static final int MAXIMUM_MESSAGE_LENGTH = 1024;
     private static final String AGENT_ROLE = "agent";
+    private static final String DOCUMENT_FIELD = "document";
+    private static final String ROOT_SCHEMA_URL = "https://schemas.example/root.json";
     private static final String VALIDATE_PROBLEM = "validate-problem";
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final Set<String> AGENT_BASELINE = Set.of(
@@ -67,9 +80,7 @@ public final class ConformanceAdapter {
         response.put("sequence", sequence);
         try {
             Evaluation evaluation = evaluateCase(
-                    required(required(request, "vector"), "subject").asText(),
-                    required(request, "case"),
-                    required(request, "role").asText());
+                    text(required(request, "vector"), "subject"), required(request, "case"), text(request, "role"));
             response.put("status", evaluation.status());
             if (evaluation.message() != null) {
                 response.put("message", evaluation.message());
@@ -87,11 +98,11 @@ public final class ConformanceAdapter {
             case "identity-comparison" -> evaluateIdentity(test);
             case "service-origin" -> evaluateServiceOrigin(test);
             case "resource-reference" -> evaluateReference(test);
-            case "service-document" -> parse(test, "document", OdpJson::parseServiceDocument);
-            case "collection-envelope" -> parse(test, "document", OdpJson::parseCollection);
+            case "service-document" -> parse(test, DOCUMENT_FIELD, OdpJson::parseServiceDocument);
+            case "collection-envelope" -> parse(test, DOCUMENT_FIELD, OdpJson::parseCollection);
             case "offering-contract" ->
                 "full".equals(optionalText(test, "representation"))
-                        ? parse(test, "document", OdpJson::parseOffering)
+                        ? parse(test, DOCUMENT_FIELD, OdpJson::parseOffering)
                         : skipped();
             case "collection-search-contract" ->
                 "validate-request".equals(operation(test))
@@ -101,12 +112,186 @@ public final class ConformanceAdapter {
                 "validate-request".equals(operation(test))
                         ? parse(test, "request", OdpJson::parseOfferingSearchRequest)
                         : skipped();
+            case "attribute-schema-retrieval" -> evaluateAttributeSchema(test);
             case "pagination-contract" -> evaluatePagination(test);
             case "errors-limits-contract" -> evaluateErrorsAndLimits(test);
             case "role-baseline" -> evaluateBaseline(test, role);
             default -> skipped();
         };
     }
+
+    private static Evaluation evaluateAttributeSchema(JsonNode test) {
+        return switch (operation(test)) {
+            case "validate-reference" -> {
+                String offering = ("{\"id\":\"item\",\"name\":\"Item\",\"odp_version\":\"1.0\"," + "\"schema\":%s}")
+                        .formatted(required(test, "reference"));
+                yield parseValue(offering, OdpJson::parseOffering, valid(test));
+            }
+            case "validate-response" -> {
+                var details = attributeSchemaDetails(
+                        Map.of(
+                                ROOT_SCHEMA_URL,
+                                new SchemaResponse(
+                                        required(test, DOCUMENT_FIELD).toString(),
+                                        text(test, "content_type"),
+                                        required(test, "status").asInt())),
+                        ROOT_SCHEMA_URL,
+                        "{\"name\":\"root\"}",
+                        false);
+                yield result((details.details().attributeSchema() != null) == valid(test));
+            }
+            case "validate-schema-reference-profile" -> {
+                Map<String, SchemaResponse> documents = new LinkedHashMap<>();
+                String rootUrl = null;
+                int index = 0;
+                for (JsonNode document : required(test, "documents")) {
+                    String url = document.has("$id")
+                            ? text(document, "$id")
+                            : "https://schemas.example/document-" + index + ".json";
+                    if (rootUrl == null) {
+                        rootUrl = url;
+                    }
+                    documents.put(url, new SchemaResponse(document.toString(), "application/schema+json", 200));
+                    index++;
+                }
+                var details = attributeSchemaDetails(
+                        documents, rootUrl, "{\"children\":[{\"name\":\"child\"}],\"name\":\"root\"}", false);
+                yield result((details.details().attributeSchema() != null) == valid(test));
+            }
+            case "validation-scope" -> {
+                boolean terse = "terse".equals(text(test, "representation"));
+                var details = attributeSchemaDetails(
+                        Map.of(ROOT_SCHEMA_URL, new SchemaResponse("""
+                                        {"$schema":"https://json-schema.org/draft/2020-12/schema",
+                                        "properties":{"memory":{"type":"number"}},"type":"object"}
+                                        """, "application/schema+json", 200)),
+                        ROOT_SCHEMA_URL,
+                        "{\"memory\":\"invalid\"}",
+                        terse);
+                boolean complete = details.supportingRequests() > 0
+                        && details.details().offering().attributes() == null
+                        && details.details().issues().stream()
+                                .anyMatch(issue -> issue.scope() == OfferingIssue.Scope.ATTRIBUTES);
+                yield result(complete
+                        == required(test, "complete_instance_validation").asBoolean());
+            }
+            case "failure-scope" -> {
+                var details = attributeSchemaDetails(
+                        Map.of(
+                                ROOT_SCHEMA_URL,
+                                new SchemaResponse("{\"title\":\"Unavailable\"}", "application/problem+json", 503)),
+                        ROOT_SCHEMA_URL,
+                        "{\"name\":\"root\"}",
+                        false);
+                Map<String, Boolean> actual = Map.of(
+                        "offering_usable",
+                                "item".equals(details.details().offering().id()),
+                        "attributes_usable", details.details().offering().attributes() != null,
+                        "report_issue",
+                                details.details().issues().stream()
+                                        .anyMatch(issue -> issue.scope() == OfferingIssue.Scope.ATTRIBUTE_SCHEMA));
+                Map<String, Boolean> expected = new LinkedHashMap<>();
+                required(test, "expected")
+                        .properties()
+                        .forEach(entry ->
+                                expected.put(entry.getKey(), entry.getValue().asBoolean()));
+                yield result(actual.equals(expected));
+            }
+            default -> skipped();
+        };
+    }
+
+    private static AttributeSchemaEvaluation attributeSchemaDetails(
+            Map<String, SchemaResponse> documents, String rootUrl, String attributes, boolean terse) {
+        String serviceDocument = """
+                {"description":"ODP Java conformance adapter","http":{"endpoint_base":"/odp"},
+                "language":"en","localizations":["en"],"name":"Conformance Service",
+                "odp_version":"1.0","operations":[{"authentication":"not-required","name":"get-offering"},
+                {"authentication":"not-required","name":"list-offerings"}]}
+                """;
+        String offering = ("{\"attributes\":%s,\"id\":\"item\",\"name\":\"Item\",\"odp_version\":\"1.0\","
+                        + "\"schema\":{\"url\":\"%s\"}}")
+                .formatted(attributes, rootUrl);
+        OdpTransport service = request -> response(
+                request,
+                "/.well-known/odp".equals(request.uri().getPath())
+                        ? serviceDocument
+                        : terse ? "{\"id\":\"item\",\"name\":\"Item\",\"odp_version\":\"1.0\"}" : offering,
+                "application/odp+json",
+                200);
+        AtomicInteger supportingRequests = new AtomicInteger();
+        OdpTransport supporting = request -> {
+            supportingRequests.incrementAndGet();
+            SchemaResponse document = documents.getOrDefault(
+                    request.uri().toString(),
+                    new SchemaResponse("{\"title\":\"Not Found\"}", "application/problem+json", 404));
+            return response(request, document.body(), document.contentType(), document.status());
+        };
+        OdpServiceClient client = OdpServiceClient.create(URI.create("https://service.example"), service, supporting);
+        OfferingDetails details = terse
+                ? new OfferingDetails(client.getOffering("item", "terse", null), null, List.of(), List.of())
+                : client.getOfferingDetails("item", null);
+        return new AttributeSchemaEvaluation(details, supportingRequests.get());
+    }
+
+    private static HttpResponse<byte[]> response(HttpRequest request, String body, String contentType, int status) {
+        return new HttpResponse<>() {
+            @Override
+            public int statusCode() {
+                return status;
+            }
+
+            @Override
+            public HttpRequest request() {
+                return request;
+            }
+
+            @Override
+            public Optional<HttpResponse<byte[]>> previousResponse() {
+                return Optional.empty();
+            }
+
+            @Override
+            public HttpHeaders headers() {
+                return HttpHeaders.of(Map.of("Content-Type", List.of(contentType)), (name, value) -> true);
+            }
+
+            @Override
+            public byte[] body() {
+                return body.getBytes(StandardCharsets.UTF_8);
+            }
+
+            @Override
+            public Optional<SSLSession> sslSession() {
+                return Optional.empty();
+            }
+
+            @Override
+            public URI uri() {
+                return request.uri();
+            }
+
+            @Override
+            public HttpClient.Version version() {
+                return HttpClient.Version.HTTP_1_1;
+            }
+        };
+    }
+
+    private static Evaluation parseValue(String value, Parser parser, boolean expected) {
+        boolean actual;
+        try {
+            parser.parse(value);
+            actual = true;
+        } catch (IllegalArgumentException exception) {
+            actual = false;
+        }
+        return result(actual == expected);
+    }
+
+    private record AttributeSchemaEvaluation(OfferingDetails details, int supportingRequests) {}
+
+    private record SchemaResponse(String body, String contentType, int status) {}
 
     private static Evaluation evaluateIdentity(JsonNode test) {
         ResourceIdentity left = decode(required(test, "left"), ResourceIdentity.class);
@@ -208,13 +393,13 @@ public final class ConformanceAdapter {
         }
         if (AGENT_ROLE.equals(role)) {
             Set<String> behaviors = new java.util.HashSet<>();
-            required(test, "behaviors").forEach(value -> behaviors.add(value.asText()));
+            required(test, "behaviors").forEach(value -> behaviors.add(textValue(value)));
             return result(behaviors.containsAll(AGENT_BASELINE) == valid(test));
         }
         List<OperationDescriptor> operations = new ArrayList<>();
         required(test, "operations")
                 .forEach(value -> operations.add(new OperationDescriptor(
-                        AuthenticationRequirement.NOT_REQUIRED, OdpOperation.fromValue(value.asText()))));
+                        AuthenticationRequirement.NOT_REQUIRED, OdpOperation.fromValue(textValue(value)))));
         boolean actual;
         try {
             OdpJson.parseServiceDocument(OdpJson.write(document(operations)));
@@ -265,12 +450,20 @@ public final class ConformanceAdapter {
     }
 
     private static String text(JsonNode object, String name) {
-        return required(object, name).asText();
+        return textValue(required(object, name));
     }
 
     private static String optionalText(JsonNode object, String name) {
         JsonNode value = object.get(name);
-        return value == null ? null : value.asText();
+        return value == null ? null : textValue(value);
+    }
+
+    private static String textValue(JsonNode value) {
+        String result = value.stringValue();
+        if (result == null) {
+            throw new IllegalArgumentException("Conformance case field is not a string");
+        }
+        return result;
     }
 
     private static String operation(JsonNode test) {

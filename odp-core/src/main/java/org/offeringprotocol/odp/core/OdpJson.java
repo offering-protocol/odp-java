@@ -72,13 +72,31 @@ public final class OdpJson {
     }
 
     public static OfferingPage parseOfferingSearchResponse(String json) {
-        return parse(json, "offering-search-response.schema.json", "Offering search response", OfferingPage.class);
+        OfferingPage page =
+                parse(json, "offering-search-response.schema.json", "Offering search response", OfferingPage.class);
+        page.items()
+                .forEach(item ->
+                        parseOffering(withInheritedVersion(write(item), page.odpVersion(), item.odpVersion() != null)));
+        return page;
     }
 
     public static <T> Page<T> parsePage(String json, Class<T> itemType) {
         validate(json, "page-envelope.schema.json", "page envelope");
         JavaType type = MAPPER.getTypeFactory().constructParametricType(Page.class, itemType);
-        return decode(json, type, "page envelope");
+        Page<T> page = decode(json, type, "page envelope");
+        if (itemType == Collection.class) {
+            page.items().forEach(item -> {
+                Collection collection = (Collection) item;
+                parseCollection(
+                        withInheritedVersion(write(collection), page.odpVersion(), collection.odpVersion() != null));
+            });
+        } else if (itemType == Offering.class) {
+            page.items().forEach(item -> {
+                Offering offering = (Offering) item;
+                parseOffering(withInheritedVersion(write(offering), page.odpVersion(), offering.odpVersion() != null));
+            });
+        }
+        return page;
     }
 
     public static String write(Object value) {
@@ -87,6 +105,13 @@ public final class OdpJson {
         } catch (JacksonException exception) {
             throw new IllegalArgumentException("Unable to encode ODP JSON", exception);
         }
+    }
+
+    private static String withInheritedVersion(String json, String version, boolean present) {
+        if (present) {
+            return json;
+        }
+        return "{\"odp_version\":" + write(version) + (json.length() == 2 ? "}" : "," + json.substring(1));
     }
 
     private static <T> T parse(String json, String schemaName, String documentType, Class<T> type) {

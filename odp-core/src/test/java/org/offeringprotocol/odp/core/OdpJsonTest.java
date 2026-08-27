@@ -56,6 +56,17 @@ class OdpJsonTest {
     }
 
     @Test
+    void parsesTapTrustProtocol() {
+        ServiceDocument document = OdpJson.parseServiceDocument(DOCUMENT.replace(
+                "\"example_extension\":{\"enabled\":true}",
+                "\"protocols\":{\"trust\":[{\"name\":\"tap\"}]},\"example_extension\":{\"enabled\":true}"));
+
+        assertEquals(
+                List.of(new ServiceDocument.TrustProtocol("tap")),
+                document.protocols().trust());
+    }
+
+    @Test
     void rejectsInvalidServiceDocuments() {
         OdpValidationException exception = assertThrows(
                 OdpValidationException.class, () -> OdpJson.parseServiceDocument("{\"odp_version\":\"1.0\"}"));
@@ -106,6 +117,22 @@ class OdpJsonTest {
 
         assertNull(offering.attributes());
         assertTrue(!OdpJson.write(offering).contains("attributes"));
+    }
+
+    @Test
+    void validatesEmbeddedRepresentationsWithThePageVersion() {
+        Page<Collection> collections = OdpJson.parsePage(
+                "{\"items\":[{\"description\":\"odp_version\",\"id\":\"plants\",\"name\":\"Plants\"}],\"odp_version\":\"1.0\"}",
+                Collection.class);
+        OfferingPage offerings = OdpJson.parseOfferingSearchResponse(
+                "{\"items\":[{\"id\":\"plant\",\"name\":\"Plant\"}],\"odp_version\":\"1.0\"}");
+
+        assertNull(collections.items().get(0).odpVersion());
+        assertNull(offerings.items().get(0).odpVersion());
+        assertThrows(
+                OdpValidationException.class,
+                () -> OdpJson.parseOfferingSearchResponse(
+                        "{\"items\":[{\"id\":\"bad/id\",\"name\":\"Plant\"}],\"odp_version\":\"1.0\"}"));
     }
 
     @Test
