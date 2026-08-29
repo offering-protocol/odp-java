@@ -31,12 +31,15 @@ import org.offeringprotocol.odp.core.Offering;
 import org.offeringprotocol.odp.core.OperationDescriptor;
 import org.offeringprotocol.odp.core.Page;
 import org.offeringprotocol.odp.core.ResourceIdentity;
+import org.offeringprotocol.odp.core.SearchCapabilities.FilterDefinition;
+import org.offeringprotocol.odp.core.SearchCapabilities.SortDefinition;
 import org.offeringprotocol.odp.core.ServiceDocument;
 import org.offeringprotocol.odp.service.OdpHttpRequest;
 import org.offeringprotocol.odp.service.OdpService;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /** Process adapter for the language-neutral ODP conformance harness. */
 public final class ConformanceAdapter {
@@ -44,6 +47,9 @@ public final class ConformanceAdapter {
     private static final String AGENT_ROLE = "agent";
     private static final String DOCUMENT_FIELD = "document";
     private static final String ROOT_SCHEMA_URL = "https://schemas.example/root.json";
+    private static final String FILTER_ADVERTISEMENT = "filter-advertisement";
+    private static final String NORMALIZE_AGENT_RESPONSE = "normalize-agent-response";
+    private static final String VALIDATE_ADVERTISEMENT = "validate-advertisement";
     private static final String VALIDATE_PROBLEM = "validate-problem";
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final Set<String> AGENT_BASELINE = Set.of(
@@ -108,6 +114,7 @@ public final class ConformanceAdapter {
                 "validate-request".equals(operation(test))
                         ? parse(test, "request", OdpJson::parseCollectionSearchRequest)
                         : skipped();
+            case "composition-contract" -> evaluateComposition(test, role);
             case "offering-search-contract" ->
                 "validate-request".equals(operation(test))
                         ? parse(test, "request", OdpJson::parseOfferingSearchRequest)
@@ -118,6 +125,73 @@ public final class ConformanceAdapter {
             case "role-baseline" -> evaluateBaseline(test, role);
             default -> skipped();
         };
+    }
+
+    private static Evaluation evaluateComposition(JsonNode test, String role) {
+        if (NORMALIZE_AGENT_RESPONSE.equals(operation(test)) && AGENT_ROLE.equals(role)) {
+            try {
+                JsonNode actual = JSON.readTree(OdpJson.normalizeAgentResponse(
+                        required(test, DOCUMENT_FIELD).toString(),
+                        required(test, "kind").asString()));
+                validateAgentResponse(actual.toString(), required(test, "kind").asString());
+                return result(actual.equals(required(test, "expected")));
+            } catch (JacksonException exception) {
+                throw new IllegalArgumentException("Unable to decode normalized Agent response", exception);
+            }
+        }
+        if (!VALIDATE_ADVERTISEMENT.equals(operation(test))
+                && (!FILTER_ADVERTISEMENT.equals(operation(test)) || !AGENT_ROLE.equals(role))) {
+            return skipped();
+        }
+        String document = """
+                {"description":"ODP Java conformance adapter","http":{"endpoint_base":"/odp"},
+                "language":"en","localizations":["en"],"name":"Conformance Service",
+                "odp_version":"1.0","operations":[
+                {"authentication":"not-required","name":"get-offering"},
+                {"authentication":"not-required","name":"list-offerings"}],"protocols":
+                """ + required(test, "protocols") + "}";
+        if (VALIDATE_ADVERTISEMENT.equals(operation(test))) {
+            return parseValue(document, OdpJson::parseServiceDocument, valid(test));
+        }
+        try {
+            ServiceDocument parsed = OdpJson.parseAgentServiceDocument(document);
+            JsonNode actual =
+                    parsed.protocols() == null ? JSON.createObjectNode() : JSON.valueToTree(parsed.protocols());
+            removeNullProperties(actual);
+            return result(actual.equals(required(test, "expected")));
+        } catch (JacksonException exception) {
+            throw new IllegalArgumentException("Unable to encode Agent protocol projection", exception);
+        }
+    }
+
+    private static void validateAgentResponse(String document, String kind) {
+        switch (kind) {
+            case "service-document" -> OdpJson.parseAgentServiceDocument(document);
+            case "collection" -> OdpJson.parseCollection(document);
+            case "offering" -> OdpJson.parseOffering(document);
+            case "collection-page" -> OdpJson.parsePage(document, org.offeringprotocol.odp.core.Collection.class);
+            case "offering-page" -> OdpJson.parsePage(document, Offering.class);
+            case "filter-page" -> OdpJson.parsePage(document, FilterDefinition.class);
+            case "sort-page" -> OdpJson.parsePage(document, SortDefinition.class);
+            case "problem" -> OdpJson.parseProblemDetails(document);
+            default -> throw new IllegalArgumentException("Unknown Agent response kind");
+        }
+    }
+
+    private static void removeNullProperties(JsonNode node) {
+        if (node instanceof ObjectNode object) {
+            List<String> nullProperties = new ArrayList<>();
+            object.properties().forEach(entry -> {
+                if (entry.getValue().isNull()) {
+                    nullProperties.add(entry.getKey());
+                } else {
+                    removeNullProperties(entry.getValue());
+                }
+            });
+            nullProperties.forEach(object::remove);
+            return;
+        }
+        node.forEach(ConformanceAdapter::removeNullProperties);
     }
 
     private static Evaluation evaluateAttributeSchema(JsonNode test) {

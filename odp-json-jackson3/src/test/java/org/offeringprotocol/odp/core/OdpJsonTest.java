@@ -67,6 +67,52 @@ class OdpJsonTest {
     }
 
     @Test
+    void filtersUnknownProtocolsForAgentsWithoutWeakeningServiceValidation() {
+        String protocols = """
+                "protocols":{
+                  "enrollment":[{"name":"future-enrollment"},{"name":"aep"}],
+                  "payments":[
+                    {"authentication":"not-required","name":"future-payment"},
+                    {"authentication":"not-required","name":"mpp"},
+                    {"authentication":"not-required","name":"x402"}],
+                  "trust":[{"name":"future-trust"},{"name":"tap"}]},
+                """;
+        String value = DOCUMENT.replace("\"example_extension\":", protocols + "\"example_extension\":");
+
+        assertThrows(OdpValidationException.class, () -> OdpJson.parseServiceDocument(value));
+        ServiceDocument document = OdpJson.parseAgentServiceDocument(value);
+
+        assertEquals(
+                List.of(new ServiceDocument.EnrollmentProtocol("aep")),
+                document.protocols().enrollment());
+        assertEquals(2, document.protocols().payments().size());
+        assertEquals(
+                List.of(new ServiceDocument.TrustProtocol("tap")),
+                document.protocols().trust());
+    }
+
+    @Test
+    void omitsAgentProtocolCategoriesContainingOnlyUnknownNames() {
+        String protocols = """
+                "protocols":{
+                  "enrollment":[{"name":"future-enrollment"}],
+                  "payments":[{"authentication":"not-required","name":"future-payment"}],
+                  "trust":[{"name":"future-trust"}]},
+                """;
+        String value = DOCUMENT.replace("\"example_extension\":", protocols + "\"example_extension\":");
+
+        assertNull(OdpJson.parseAgentServiceDocument(value).protocols());
+    }
+
+    @Test
+    void rejectsMalformedRecognizedProtocolsForAgents() {
+        String value = DOCUMENT.replace(
+                "\"example_extension\":", "\"protocols\":{\"payments\":[{\"name\":\"mpp\"}]},\"example_extension\":");
+
+        assertThrows(OdpValidationException.class, () -> OdpJson.parseAgentServiceDocument(value));
+    }
+
+    @Test
     void rejectsInvalidServiceDocuments() {
         OdpValidationException exception = assertThrows(
                 OdpValidationException.class, () -> OdpJson.parseServiceDocument("{\"odp_version\":\"1.0\"}"));

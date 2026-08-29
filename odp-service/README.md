@@ -13,16 +13,23 @@ it does not load, copy, sort, or index a storage-backed catalog.
 <dependency>
   <groupId>org.offeringprotocol</groupId>
   <artifactId>odp-service</artifactId>
-  <version>0.1.1</version>
+  <version>0.2.0</version>
+</dependency>
+<dependency>
+  <groupId>org.offeringprotocol</groupId>
+  <artifactId>odp-json-jackson2</artifactId>
+  <version>0.2.0</version>
 </dependency>
 ```
 
 ```kotlin
-implementation("org.offeringprotocol:odp-service:0.1.1")
+implementation("org.offeringprotocol:odp-service:0.2.0")
+implementation("org.offeringprotocol:odp-json-jackson2:0.2.0")
 ```
 
 The Service module brings in `odp-core` transitively and does not depend on Agent or directory
-behavior.
+behavior. Replace `odp-json-jackson2` with `odp-json-jackson3` in a Jackson 3 application. Exactly
+one provider must be present at runtime; no programmatic configuration is required.
 
 ## Minimum integration
 
@@ -159,6 +166,9 @@ The runtime owns fixed operation routes, representation and limit validation, th
 request-body ceiling, Service Document generation, media types, and ODP Problem Details. The host
 application owns connection policy, HTTP caching headers, compression, observability, rate limits,
 and deployment lifecycle.
+
+Service Document protocol advertisements are validated against the declared ODP version and accept
+only the enrollment, payment, and trust protocol names defined by that version.
 
 ## Authentication and payment
 

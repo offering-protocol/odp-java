@@ -1,10 +1,5 @@
 package org.offeringprotocol.odp.agent;
 
-import com.networknt.schema.InputFormat;
-import com.networknt.schema.Schema;
-import com.networknt.schema.SchemaLocation;
-import com.networknt.schema.SchemaRegistry;
-import com.networknt.schema.SpecificationVersion;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -15,8 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.offeringprotocol.odp.core.OdpJson;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.node.ObjectNode;
+import org.offeringprotocol.odp.core.OdpJsonNode;
+import org.offeringprotocol.odp.core.OdpJsonSchema;
 
 final class AttributeSchemaResolver {
     private static final String DIALECT = "https://json-schema.org/draft/2020-12/schema";
@@ -38,12 +33,10 @@ final class AttributeSchemaResolver {
         URI root = withoutFragment(reference);
         SchemaGraph graph = new SchemaGraph();
         load(root, 0, graph);
-        JsonNode bundled = bundle(root, graph.documents);
+        OdpJsonNode bundled = bundle(root, graph.documents);
         Map<String, String> registryDocuments = new HashMap<>();
         graph.documents.forEach((url, document) -> registryDocuments.put(url.toString(), document.toString()));
-        SchemaRegistry registry = SchemaRegistry.withDefaultDialect(
-                SpecificationVersion.DRAFT_2020_12, builder -> builder.schemas(registryDocuments));
-        Schema validator = registry.getSchema(SchemaLocation.of(root.toString()));
+        OdpJsonSchema validator = OdpJson.compileSchema(registryDocuments, root.toString());
         return new ResolvedSchema(bundled, validator);
     }
 
@@ -57,7 +50,7 @@ final class AttributeSchemaResolver {
         if (depth > MAXIMUM_DEPTH) {
             throw new IllegalStateException("ODP Attribute Schema graph exceeds eight reference levels");
         }
-        JsonNode document = client.get(
+        OdpJsonNode document = client.get(
                 target, "application/schema+json", Set.of("application/schema+json"), MAXIMUM_DOCUMENT_BYTES, 16);
         requireSchema(document);
         graph.bytes += document.toString().getBytes(StandardCharsets.UTF_8).length;
@@ -70,18 +63,18 @@ final class AttributeSchemaResolver {
         }
     }
 
-    private static void requireSchema(JsonNode document) {
+    private static void requireSchema(OdpJsonNode document) {
         if (!DIALECT.equals(document.path("$schema").asString())) {
             throw new IllegalStateException("ODP Attribute Schema must declare JSON Schema Draft 2020-12");
         }
         visit(document, node -> {
-            JsonNode dynamicReference = node.get("$dynamicRef");
+            OdpJsonNode dynamicReference = node.get("$dynamicRef");
             if (dynamicReference != null
                     && (!dynamicReference.isString()
                             || !dynamicReference.asString().startsWith("#"))) {
                 throw new IllegalStateException("ODP Attribute Schema $dynamicRef must be a fragment-only reference");
             }
-            JsonNode vocabulary = node.get("$vocabulary");
+            OdpJsonNode vocabulary = node.get("$vocabulary");
             if (vocabulary != null && vocabulary.isObject()) {
                 vocabulary.forEachEntry((uri, required) -> {
                     if (required.asBoolean(false) && !uri.startsWith(STANDARD_VOCABULARY)) {
@@ -92,7 +85,7 @@ final class AttributeSchemaResolver {
         });
     }
 
-    private static List<URI> externalReferences(JsonNode document, URI retrievalUrl) {
+    private static List<URI> externalReferences(OdpJsonNode document, URI retrievalUrl) {
         Set<URI> localResources = new HashSet<>();
         collectResourceIdentifiers(document, retrievalUrl, localResources);
         Set<URI> references = new HashSet<>();
@@ -101,17 +94,17 @@ final class AttributeSchemaResolver {
         return references.stream().sorted().toList();
     }
 
-    private static void collectResourceIdentifiers(JsonNode value, URI base, Set<URI> result) {
+    private static void collectResourceIdentifiers(OdpJsonNode value, URI base, Set<URI> result) {
         URI current = resolveIdentifier(value, base);
         result.add(withoutFragment(current));
-        for (JsonNode child : value) {
+        for (OdpJsonNode child : value) {
             collectResourceIdentifiers(child, current, result);
         }
     }
 
-    private static void collectReferences(JsonNode value, URI base, Set<URI> result) {
+    private static void collectReferences(OdpJsonNode value, URI base, Set<URI> result) {
         URI current = resolveIdentifier(value, base);
-        JsonNode reference = value.isObject() ? value.get("$ref") : null;
+        OdpJsonNode reference = value.isObject() ? value.get("$ref") : null;
         if (reference != null) {
             if (!reference.isString()) {
                 throw new IllegalStateException("ODP Attribute Schema $ref must be a string");
@@ -120,13 +113,13 @@ final class AttributeSchemaResolver {
             requireHttps(resolved, "ODP Attribute Schema references must use HTTPS");
             result.add(withoutFragment(resolved));
         }
-        for (JsonNode child : value) {
+        for (OdpJsonNode child : value) {
             collectReferences(child, current, result);
         }
     }
 
-    private static URI resolveIdentifier(JsonNode value, URI base) {
-        JsonNode identifier = value.isObject() ? value.get(IDENTIFIER) : null;
+    private static URI resolveIdentifier(OdpJsonNode value, URI base) {
+        OdpJsonNode identifier = value.isObject() ? value.get(IDENTIFIER) : null;
         if (identifier == null) {
             return base;
         }
@@ -138,8 +131,8 @@ final class AttributeSchemaResolver {
         return resolved;
     }
 
-    private static JsonNode bundle(URI rootUrl, Map<URI, JsonNode> documents) {
-        ObjectNode root = documents.get(rootUrl).deepCopy().asObject();
+    private static OdpJsonNode bundle(URI rootUrl, Map<URI, OdpJsonNode> documents) {
+        OdpJsonNode root = documents.get(rootUrl).deepCopy();
         if (!root.has(IDENTIFIER)) {
             root.put(IDENTIFIER, rootUrl.toString());
         }
@@ -147,9 +140,9 @@ final class AttributeSchemaResolver {
         externalUrls.remove(rootUrl);
         externalUrls.sort(URI::compareTo);
         if (!externalUrls.isEmpty()) {
-            ObjectNode definitions =
+            OdpJsonNode definitions =
                     root.has(DEFINITIONS) && root.get(DEFINITIONS).isObject()
-                            ? root.get(DEFINITIONS).deepCopy().asObject()
+                            ? root.get(DEFINITIONS).deepCopy()
                             : root.putObject(DEFINITIONS);
             int index = 0;
             for (URI externalUrl : externalUrls) {
@@ -158,7 +151,7 @@ final class AttributeSchemaResolver {
                 while (definitions.has(key)) {
                     key = key + "_";
                 }
-                ObjectNode external = documents.get(externalUrl).deepCopy().asObject();
+                OdpJsonNode external = documents.get(externalUrl).deepCopy();
                 if (!external.has(IDENTIFIER)) {
                     external.put(IDENTIFIER, externalUrl.toString());
                 }
@@ -169,11 +162,11 @@ final class AttributeSchemaResolver {
         return root;
     }
 
-    private static void visit(JsonNode value, NodeVisitor visitor) {
+    private static void visit(OdpJsonNode value, NodeVisitor visitor) {
         if (value.isObject()) {
             visitor.visit(value);
         }
-        for (JsonNode child : value) {
+        for (OdpJsonNode child : value) {
             visit(child, visitor);
         }
     }
@@ -191,21 +184,19 @@ final class AttributeSchemaResolver {
         }
     }
 
-    record ResolvedSchema(JsonNode document, Schema validator) {
-        boolean validates(Map<String, JsonNode> attributes) {
-            return validator
-                    .validate(OdpJson.write(attributes), InputFormat.JSON)
-                    .isEmpty();
+    record ResolvedSchema(OdpJsonNode document, OdpJsonSchema validator) {
+        boolean validates(Map<String, OdpJsonNode> attributes) {
+            return validator.validate(OdpJson.write(attributes)).isEmpty();
         }
     }
 
     private static final class SchemaGraph {
-        private final Map<URI, JsonNode> documents = new LinkedHashMap<>();
+        private final Map<URI, OdpJsonNode> documents = new LinkedHashMap<>();
         private int bytes;
     }
 
     @FunctionalInterface
     private interface NodeVisitor {
-        void visit(JsonNode value);
+        void visit(OdpJsonNode value);
     }
 }

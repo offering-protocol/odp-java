@@ -3,7 +3,6 @@ package org.offeringprotocol.odp.core;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import tools.jackson.databind.JsonNode;
 
 final class Copies {
     private Copies() {}
@@ -16,7 +15,7 @@ final class Copies {
         return value == null ? Map.of() : Map.copyOf(value);
     }
 
-    static Map<String, JsonNode> nodes(Map<String, JsonNode> value) {
+    static Map<String, OdpJsonNode> nodes(Map<String, OdpJsonNode> value) {
         if (value == null) {
             return Map.of();
         }
@@ -25,7 +24,7 @@ final class Copies {
                         Map.Entry::getKey, entry -> entry.getValue().deepCopy()));
     }
 
-    static Map<String, JsonNode> nullableNodes(Map<String, JsonNode> value) {
+    static Map<String, OdpJsonNode> nullableNodes(Map<String, OdpJsonNode> value) {
         return value == null ? null : nodes(value);
     }
 }

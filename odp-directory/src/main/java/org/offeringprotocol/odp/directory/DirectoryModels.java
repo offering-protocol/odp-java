@@ -9,11 +9,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.offeringprotocol.odp.core.AuthenticationRequirement;
+import org.offeringprotocol.odp.core.OdpJsonNode;
 import org.offeringprotocol.odp.core.OdpOperation;
 import org.offeringprotocol.odp.core.OperationDescriptor;
 import org.offeringprotocol.odp.core.PaymentOption;
 import org.offeringprotocol.odp.core.ServiceDocument;
-import tools.jackson.databind.JsonNode;
 
 public interface DirectoryModels {
     public record SearchRequest(String query, ServiceFilters filters, Integer limit) {
@@ -59,7 +59,7 @@ public interface DirectoryModels {
             @JsonProperty("status_url") String statusUrl,
             @JsonProperty("support_url") String supportUrl,
             @JsonProperty("website_url") String websiteUrl,
-            @JsonAnySetter @JsonAnyGetter Map<String, JsonNode> additional) {
+            @JsonAnySetter @JsonAnyGetter Map<String, OdpJsonNode> additional) {
         public Service {
             localizations = localizations == null ? List.of() : List.copyOf(localizations);
             keywords = keywords == null ? List.of() : List.copyOf(keywords);
@@ -91,7 +91,7 @@ public interface DirectoryModels {
             List<Service> items,
             String next,
             Facets facets,
-            @JsonAnySetter @JsonAnyGetter Map<String, JsonNode> additional) {
+            @JsonAnySetter @JsonAnyGetter Map<String, OdpJsonNode> additional) {
         public SearchPage {
             items = items == null ? List.of() : List.copyOf(items);
             additional = additional == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(additional));

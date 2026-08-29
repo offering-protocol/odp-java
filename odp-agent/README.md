@@ -13,15 +13,23 @@ capability checks, Collections, Offerings, localization, and continuations.
 <dependency>
   <groupId>org.offeringprotocol</groupId>
   <artifactId>odp-agent</artifactId>
-  <version>0.1.1</version>
+  <version>0.2.0</version>
+</dependency>
+<dependency>
+  <groupId>org.offeringprotocol</groupId>
+  <artifactId>odp-json-jackson2</artifactId>
+  <version>0.2.0</version>
 </dependency>
 ```
 
 ```kotlin
-implementation("org.offeringprotocol:odp-agent:0.1.1")
+implementation("org.offeringprotocol:odp-agent:0.2.0")
+implementation("org.offeringprotocol:odp-json-jackson2:0.2.0")
 ```
 
-The Agent module brings in `odp-directory` and `odp-core` transitively.
+The Agent module brings in `odp-directory` and `odp-core` transitively. Replace
+`odp-json-jackson2` with `odp-json-jackson3` in a Jackson 3 application. Exactly one provider must
+be present at runtime; no programmatic configuration is required.
 
 ## Discover Offerings across Services
 
@@ -220,6 +228,10 @@ OdpServiceClient service = OdpServiceClient.create(
 
 Supporting-document resolution does not invoke an Action. The application remains responsible for
 Action selection, user approval, authentication, payment, request construction, and invocation.
+
+Service inspection filters unrecognized enrollment, payment, and trust protocol descriptors for
+compatible ODP versions. Recognized descriptors remain subject to the complete Service Document
+contract.
 
 ## Errors
 

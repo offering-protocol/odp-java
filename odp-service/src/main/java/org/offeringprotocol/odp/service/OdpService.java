@@ -9,6 +9,7 @@ import org.offeringprotocol.odp.core.AuthenticationRequirement;
 import org.offeringprotocol.odp.core.Collection;
 import org.offeringprotocol.odp.core.Odp;
 import org.offeringprotocol.odp.core.OdpJson;
+import org.offeringprotocol.odp.core.OdpJsonNode;
 import org.offeringprotocol.odp.core.OdpOperation;
 import org.offeringprotocol.odp.core.OdpValidationException;
 import org.offeringprotocol.odp.core.Offering;
@@ -16,7 +17,6 @@ import org.offeringprotocol.odp.core.OperationDescriptor;
 import org.offeringprotocol.odp.core.ProblemDetails;
 import org.offeringprotocol.odp.core.SearchCapabilities;
 import org.offeringprotocol.odp.core.ServiceDocument;
-import tools.jackson.databind.JsonNode;
 
 /** Framework-neutral ODP Service request handler. */
 public final class OdpService {
@@ -228,7 +228,7 @@ public final class OdpService {
         private String configuredStatusUrl;
         private String configuredSupportUrl;
         private String configuredWebsiteUrl;
-        private Map<String, JsonNode> configuredAdditional = Map.of();
+        private Map<String, OdpJsonNode> configuredAdditional = Map.of();
         private Map<OdpOperation, Endpoint> configuredEndpoints;
         private Map<OdpOperation, AuthenticationRequirement> configuredOperationAuthentication = Map.of();
 
@@ -300,7 +300,7 @@ public final class OdpService {
             return this;
         }
 
-        public Builder additional(Map<String, JsonNode> values) {
+        public Builder additional(Map<String, OdpJsonNode> values) {
             this.configuredAdditional = Map.copyOf(values);
             return this;
         }

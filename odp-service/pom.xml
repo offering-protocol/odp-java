@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.offeringprotocol</groupId>
     <artifactId>odp-java</artifactId>
-    <version>0.1.1</version>
+    <version>0.2.0</version>
   </parent>
 
   <artifactId>odp-service</artifactId>
@@ -23,6 +23,12 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>odp-core</artifactId>
       <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>odp-json-jackson3</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 </project>

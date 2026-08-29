@@ -6,11 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.annotation.JsonDeserialize;
-import tools.jackson.databind.annotation.JsonPOJOBuilder;
 
-@JsonDeserialize(builder = ServiceDocument.Builder.class)
 public final class ServiceDocument {
     private final String documentOdpVersion;
     private final String documentName;
@@ -29,7 +25,7 @@ public final class ServiceDocument {
     private final String documentStatusUrl;
     private final String documentSupportUrl;
     private final String documentWebsiteUrl;
-    private final Map<String, JsonNode> documentAdditional;
+    private final Map<String, OdpJsonNode> documentAdditional;
 
     private ServiceDocument(Builder builder) {
         this.documentOdpVersion = builder.configuredOdpVersion;
@@ -170,7 +166,7 @@ public final class ServiceDocument {
     }
 
     @JsonAnyGetter
-    public Map<String, JsonNode> additional() {
+    public Map<String, OdpJsonNode> additional() {
         return documentAdditional;
     }
 
@@ -225,7 +221,6 @@ public final class ServiceDocument {
                 documentAdditional);
     }
 
-    @JsonPOJOBuilder(withPrefix = "")
     public static final class Builder {
         private String configuredOdpVersion;
         private String configuredName;
@@ -244,7 +239,7 @@ public final class ServiceDocument {
         private String configuredStatusUrl;
         private String configuredSupportUrl;
         private String configuredWebsiteUrl;
-        private Map<String, JsonNode> configuredAdditional = Map.of();
+        private Map<String, OdpJsonNode> configuredAdditional = Map.of();
 
         private Builder() {}
 
@@ -341,14 +336,14 @@ public final class ServiceDocument {
         }
 
         @JsonAnySetter
-        public Builder additional(String name, JsonNode value) {
-            Map<String, JsonNode> values = new java.util.LinkedHashMap<>(configuredAdditional);
+        public Builder additional(String name, OdpJsonNode value) {
+            Map<String, OdpJsonNode> values = new java.util.LinkedHashMap<>(configuredAdditional);
             values.put(name, value);
             this.configuredAdditional = Map.copyOf(values);
             return this;
         }
 
-        public Builder additional(Map<String, JsonNode> values) {
+        public Builder additional(Map<String, OdpJsonNode> values) {
             this.configuredAdditional = values == null ? Map.of() : Map.copyOf(values);
             return this;
         }

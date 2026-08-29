@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.offeringprotocol</groupId>
     <artifactId>odp-java</artifactId>
-    <version>0.1.1</version>
+    <version>0.2.0</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
@@ -21,6 +21,11 @@
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>odp-json-jackson3</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>odp-agent</artifactId>

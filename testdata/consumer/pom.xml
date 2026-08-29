@@ -16,6 +16,11 @@
   <dependencies>
     <dependency>
       <groupId>org.offeringprotocol</groupId>
+      <artifactId>odp-json-jackson2</artifactId>
+      <version>${odp.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.offeringprotocol</groupId>
       <artifactId>odp-core</artifactId>
       <version>${odp.version}</version>
     </dependency>

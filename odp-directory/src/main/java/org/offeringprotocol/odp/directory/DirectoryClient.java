@@ -1,6 +1,5 @@
 package org.offeringprotocol.odp.directory;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -12,17 +11,14 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.json.JsonMapper;
+import org.offeringprotocol.odp.core.OdpJson;
+import org.offeringprotocol.odp.core.OdpJsonNode;
+import org.offeringprotocol.odp.core.ServiceDocument;
 
 /** Client for the canonical ODP directory. */
 public final class DirectoryClient {
     private static final int MAXIMUM_BYTES = 524_288;
     private static final int MAXIMUM_REDIRECTS = 5;
-    private static final JsonMapper JSON = JsonMapper.builder()
-            .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL))
-            .build();
-
     private final DirectoryEnvironment selectedEnvironment;
     private final HttpClient httpClient;
 
@@ -53,14 +49,13 @@ public final class DirectoryClient {
 
     public DirectoryModels.SearchPage searchServices(DirectoryModels.SearchRequest request) {
         Objects.requireNonNull(request, "request");
-        return decode(
-                send(selectedEnvironment.origin().resolve("/v1/services/search"), "POST", encode(request)),
-                DirectoryModels.SearchPage.class);
+        return decodeSearchPage(
+                send(selectedEnvironment.origin().resolve("/v1/services/search"), "POST", encode(request)));
     }
 
     public DirectoryModels.SearchPage continueSearchServices(String next) {
         URI uri = resolveContinuation(next);
-        return decode(send(uri, "GET", null), DirectoryModels.SearchPage.class);
+        return decodeSearchPage(send(uri, "GET", null));
     }
 
     public List<String> suggestServices(String prefix, Integer limit) {
@@ -74,9 +69,8 @@ public final class DirectoryClient {
                 + (limit == null ? "" : "&limit=" + limit);
         String json = send(selectedEnvironment.origin().resolve("/v1/services/suggestions" + query), "GET", null);
         try {
-            DirectoryModels.Suggestions suggestions = JSON.readValue(json, DirectoryModels.Suggestions.class);
-            return suggestions.items();
-        } catch (JacksonException exception) {
+            return OdpJson.read(json, DirectoryModels.Suggestions.class).items();
+        } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException("Directory suggestions response is invalid", exception);
         }
     }
@@ -166,17 +160,44 @@ public final class DirectoryClient {
 
     private static String encode(Object value) {
         try {
-            return JSON.writeValueAsString(value);
-        } catch (JacksonException exception) {
+            return OdpJson.write(value);
+        } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException("Directory request is not encodable", exception);
         }
     }
 
-    private static <T> T decode(String json, Class<T> type) {
+    static DirectoryModels.SearchPage decodeSearchPage(String json) {
         try {
-            return JSON.readValue(json, type);
-        } catch (JacksonException exception) {
+            OdpJsonNode value = OdpJson.parseTree(json);
+            if (value != null && value.isObject()) {
+                OdpJsonNode items = value.get("items");
+                if (items != null && items.isArray()) {
+                    items.forEach(DirectoryClient::normalizeServiceProtocols);
+                }
+            }
+            if (value == null) {
+                throw new IllegalArgumentException("Directory response is empty");
+            }
+            return OdpJson.treeToValue(value, DirectoryModels.SearchPage.class);
+        } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException("Directory response is invalid", exception);
         }
+    }
+
+    private static void normalizeServiceProtocols(OdpJsonNode value) {
+        if (!value.isObject() || value.get("protocols") == null) {
+            return;
+        }
+        OdpJsonNode service = value;
+        OdpJsonNode document = service.deepCopy();
+        document.remove(List.of("service_origin", "indexed_at"));
+        document.put("odp_version", "1.0");
+        document.putObject("http").put("endpoint_base", "/");
+        ServiceDocument parsed = OdpJson.parseAgentServiceDocument(document.toString());
+        if (parsed.protocols() == null) {
+            service.remove("protocols");
+            return;
+        }
+        service.set("protocols", OdpJson.valueToTree(parsed.protocols()));
     }
 }

@@ -13,16 +13,24 @@ ODP models without Agent or Service HTTP behavior.
 <dependency>
   <groupId>org.offeringprotocol</groupId>
   <artifactId>odp-core</artifactId>
-  <version>0.1.1</version>
+  <version>0.2.0</version>
+</dependency>
+<dependency>
+  <groupId>org.offeringprotocol</groupId>
+  <artifactId>odp-json-jackson2</artifactId>
+  <version>0.2.0</version>
 </dependency>
 ```
 
 ```kotlin
-implementation("org.offeringprotocol:odp-core:0.1.1")
+implementation("org.offeringprotocol:odp-core:0.2.0")
+implementation("org.offeringprotocol:odp-json-jackson2:0.2.0")
 ```
 
-`odp-core` requires Java 17 or newer and does not depend on another ODP module or an application
-framework.
+Use `odp-json-jackson2` with Jackson 2 applications or replace it with `odp-json-jackson3` for
+Jackson 3. Add exactly one provider. `OdpJson` discovers the provider through Java `ServiceLoader`
+and rejects a runtime with no provider or multiple providers. `odp-core` requires Java 17 or newer
+and does not select a JSON library or application framework.
 
 ## Validate and decode documents
 
@@ -44,6 +52,10 @@ Typed parsers are available for Service Documents, Collections, Offerings, Offer
 responses, search requests, page envelopes, and ODP Problem Details. `OdpJson.write(value)` encodes
 the corresponding Java records while omitting absent optional members. Unknown additive members
 permitted by the protocol are retained in each model's `additional` map.
+
+JSON-valued protocol members use `OdpJsonNode`, so public ODP models do not expose either Jackson
+major version. Use `OdpJson.parseTree`, `OdpJson.valueToTree`, and `OdpJson.treeToValue` at the
+application boundary when those members require tree access.
 
 Validation failures are reported as `OdpValidationException` with a document type and structured
 issues. Invalid local method arguments use `IllegalArgumentException`.
@@ -108,6 +120,10 @@ discovery and filtering. Live MPP and x402 responses remain authoritative for ex
 
 `ServiceDocument.TrustProtocol` represents advertised trust support. A Service that accepts Visa
 Trusted Agent Protocol requests declares a single `tap` descriptor in `protocols.trust`.
+
+Service authoring uses `OdpJson.parseServiceDocument` and rejects protocol names outside the
+declared ODP version. Agent readers use `OdpJson.parseAgentServiceDocument`; it filters unrecognized
+enrollment, payment, and trust descriptors before validating every recognized descriptor.
 
 ## Related documentation
 

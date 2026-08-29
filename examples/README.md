@@ -3,6 +3,9 @@
 The examples demonstrate the two ODP integration roles with the same public Java modules published
 to Maven Central. Run all commands from the repository root with Java 17 or newer.
 
+The example module selects `odp-json-jackson3`. Applications using Jackson 2 select
+`odp-json-jackson2` instead; the role modules and public ODP models remain the same.
+
 ## Source map
 
 | Source                                                                                         | Purpose                                                          |
