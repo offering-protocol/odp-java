@@ -69,7 +69,7 @@ jobs:
 
       - name: Set up Node.js
         if: matrix.java == '17'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
