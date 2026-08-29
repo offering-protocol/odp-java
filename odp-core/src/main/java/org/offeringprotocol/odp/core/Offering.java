@@ -5,7 +5,6 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
-import tools.jackson.databind.JsonNode;
 
 public record Offering(
         @JsonProperty("auth_expands") Boolean authExpands,
@@ -20,10 +19,10 @@ public record Offering(
         @JsonProperty("collection_ids") List<String> collectionIds,
         PricePreview price,
         SchemaReference schema,
-        Map<String, JsonNode> attributes,
+        Map<String, OdpJsonNode> attributes,
         List<Action> actions,
         @JsonProperty("detail_fields") List<String> detailFields,
-        @JsonAnySetter @JsonAnyGetter Map<String, JsonNode> additional) {
+        @JsonAnySetter @JsonAnyGetter Map<String, OdpJsonNode> additional) {
 
     public Offering {
         images = Copies.list(images);
@@ -42,7 +41,7 @@ public record Offering(
             String minimum,
             String maximum,
             String unit,
-            @JsonAnySetter @JsonAnyGetter Map<String, JsonNode> additional) {
+            @JsonAnySetter @JsonAnyGetter Map<String, OdpJsonNode> additional) {
         public PricePreview {
             additional = Copies.nodes(additional);
         }

@@ -26,6 +26,10 @@ Choose the module that matches the role your application implements:
 | A directory-only integration                | [`odp-directory`](./odp-directory/README.md) | Canonical production or sandbox Service search                      |
 | An ODP validator or protocol implementation | [`odp-core`](./odp-core/README.md)           | Models, bundled schemas, identity, references, and pagination       |
 
+Every application also selects one JSON provider: `odp-json-jackson2` for applications using
+Jackson 2, or `odp-json-jackson3` for applications using Jackson 3. The role modules do not force a
+second Jackson major version into the application.
+
 All artifacts use Maven group `org.offeringprotocol`, require Java 17 or newer, and are available
 from Maven Central without adding a repository.
 
@@ -41,7 +45,12 @@ For an Agent application:
 <dependency>
   <groupId>org.offeringprotocol</groupId>
   <artifactId>odp-agent</artifactId>
-  <version>0.1.1</version>
+  <version>0.2.0</version>
+</dependency>
+<dependency>
+  <groupId>org.offeringprotocol</groupId>
+  <artifactId>odp-json-jackson2</artifactId>
+  <version>0.2.0</version>
 </dependency>
 ```
 
@@ -51,16 +60,24 @@ For a Service integration:
 <dependency>
   <groupId>org.offeringprotocol</groupId>
   <artifactId>odp-service</artifactId>
-  <version>0.1.1</version>
+  <version>0.2.0</version>
+</dependency>
+<dependency>
+  <groupId>org.offeringprotocol</groupId>
+  <artifactId>odp-json-jackson2</artifactId>
+  <version>0.2.0</version>
 </dependency>
 ```
 
 Gradle uses the same coordinates:
 
 ```kotlin
-implementation("org.offeringprotocol:odp-agent:0.1.1")
+implementation("org.offeringprotocol:odp-agent:0.2.0")
+implementation("org.offeringprotocol:odp-json-jackson2:0.2.0")
 ```
 
+Replace `odp-json-jackson2` with `odp-json-jackson3` when the application uses Jackson 3. Exactly
+one provider must be present at runtime; `OdpJson` discovers it through Java `ServiceLoader`.
 Maven resolves the required Core and Directory modules transitively. Applications should not add
 every ODP module to one project unless they actually implement multiple roles.
 

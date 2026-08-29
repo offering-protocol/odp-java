@@ -1,11 +1,11 @@
 package org.offeringprotocol.odp.agent;
 
 import java.util.List;
+import org.offeringprotocol.odp.core.OdpJsonNode;
 import org.offeringprotocol.odp.core.Offering;
-import tools.jackson.databind.JsonNode;
 
 public record OfferingDetails(
-        Offering offering, JsonNode attributeSchema, List<DiscoveredAction> actions, List<OfferingIssue> issues) {
+        Offering offering, OdpJsonNode attributeSchema, List<DiscoveredAction> actions, List<OfferingIssue> issues) {
     public OfferingDetails {
         if (attributeSchema != null) {
             attributeSchema = attributeSchema.deepCopy();
@@ -15,7 +15,7 @@ public record OfferingDetails(
     }
 
     @Override
-    public JsonNode attributeSchema() {
+    public OdpJsonNode attributeSchema() {
         return attributeSchema == null ? null : attributeSchema.deepCopy();
     }
 }

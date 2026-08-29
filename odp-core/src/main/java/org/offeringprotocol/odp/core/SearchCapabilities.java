@@ -5,12 +5,11 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
-import tools.jackson.databind.JsonNode;
 
 public record SearchCapabilities(
         FilterSource filters,
         SortSource sorts,
-        @JsonAnySetter @JsonAnyGetter Map<String, JsonNode> additional) {
+        @JsonAnySetter @JsonAnyGetter Map<String, OdpJsonNode> additional) {
     public SearchCapabilities {
         additional = Copies.nodes(additional);
     }
@@ -37,7 +36,7 @@ public record SearchCapabilities(
             List<String> operators,
             FilterUnit unit,
             Boolean refinable,
-            @JsonAnySetter @JsonAnyGetter Map<String, JsonNode> additional) {
+            @JsonAnySetter @JsonAnyGetter Map<String, OdpJsonNode> additional) {
         public FilterDefinition {
             operators = List.copyOf(operators);
             additional = Copies.nodes(additional);
@@ -48,7 +47,7 @@ public record SearchCapabilities(
             String system,
             String code,
             String title,
-            @JsonAnySetter @JsonAnyGetter Map<String, JsonNode> additional) {
+            @JsonAnySetter @JsonAnyGetter Map<String, OdpJsonNode> additional) {
         public FilterUnit {
             additional = Copies.nodes(additional);
         }
@@ -59,7 +58,7 @@ public record SearchCapabilities(
             String title,
             String description,
             List<SortKey> keys,
-            @JsonAnySetter @JsonAnyGetter Map<String, JsonNode> additional) {
+            @JsonAnySetter @JsonAnyGetter Map<String, OdpJsonNode> additional) {
         public SortDefinition {
             keys = List.copyOf(keys);
             additional = Copies.nodes(additional);
@@ -70,7 +69,7 @@ public record SearchCapabilities(
             @JsonProperty("filter_id") String filterId,
             String direction,
             String missing,
-            @JsonAnySetter @JsonAnyGetter Map<String, JsonNode> additional) {
+            @JsonAnySetter @JsonAnyGetter Map<String, OdpJsonNode> additional) {
         public SortKey {
             additional = Copies.nodes(additional);
         }
@@ -79,8 +78,8 @@ public record SearchCapabilities(
     public record FilterExpression(
             String id,
             String operator,
-            JsonNode value,
-            @JsonAnySetter @JsonAnyGetter Map<String, JsonNode> additional) {
+            OdpJsonNode value,
+            @JsonAnySetter @JsonAnyGetter Map<String, OdpJsonNode> additional) {
         public FilterExpression {
             value = value.deepCopy();
             additional = Copies.nodes(additional);

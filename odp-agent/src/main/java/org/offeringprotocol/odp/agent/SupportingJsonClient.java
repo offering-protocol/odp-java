@@ -8,21 +8,18 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.Set;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
+import org.offeringprotocol.odp.core.OdpJson;
+import org.offeringprotocol.odp.core.OdpJsonNode;
 
 final class SupportingJsonClient {
     private static final int MAXIMUM_REDIRECTS = 5;
-    private static final JsonMapper JSON = JsonMapper.builder().build();
-
     private final OdpTransport transport;
 
     SupportingJsonClient(OdpTransport transport) {
         this.transport = transport;
     }
 
-    JsonNode get(URI target, String accept, Set<String> mediaTypes, int maximumBytes, int maximumDepth) {
+    OdpJsonNode get(URI target, String accept, Set<String> mediaTypes, int maximumBytes, int maximumDepth) {
         requireHttps(target);
         URI current = target;
         for (int redirects = 0; redirects <= MAXIMUM_REDIRECTS; redirects++) {
@@ -60,7 +57,7 @@ final class SupportingJsonClient {
                 if (!mediaTypes.contains(essence)) {
                     throw new IllegalStateException("ODP supporting resource returned an unsupported Content-Type");
                 }
-                JsonNode document = parse(bytes);
+                OdpJsonNode document = parse(bytes);
                 if (!document.isObject()) {
                     throw new IllegalStateException("ODP supporting resource must be a JSON object");
                 }
@@ -84,17 +81,17 @@ final class SupportingJsonClient {
         }
     }
 
-    private static JsonNode parse(byte[] bytes) {
+    private static OdpJsonNode parse(byte[] bytes) {
         try {
-            return JSON.readTree(new String(bytes, StandardCharsets.UTF_8));
-        } catch (JacksonException exception) {
+            return OdpJson.parseTree(new String(bytes, StandardCharsets.UTF_8));
+        } catch (IllegalArgumentException exception) {
             throw new IllegalStateException("ODP supporting resource must contain valid JSON", exception);
         }
     }
 
-    private static int depth(JsonNode value) {
+    private static int depth(OdpJsonNode value) {
         int maximum = 1;
-        for (JsonNode child : value) {
+        for (OdpJsonNode child : value) {
             maximum = Math.max(maximum, 1 + depth(child));
         }
         return maximum;

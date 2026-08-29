@@ -15,6 +15,7 @@ import java.util.Optional;
 import javax.net.ssl.SSLSession;
 import org.junit.jupiter.api.Test;
 import org.offeringprotocol.odp.core.OdpOperation;
+import org.offeringprotocol.odp.core.ServiceDocument;
 
 class OdpServiceClientTest {
     @Test
@@ -42,6 +43,30 @@ class OdpServiceClientTest {
         assertEquals(
                 "Rubber Plant",
                 client.listOfferings("terse", 10, "en").items().get(0).name());
+    }
+
+    @Test
+    void filtersUnknownProtocolsBeforeExposingServiceInspection() {
+        OdpTransport transport = request -> response(request, """
+                {"odp_version":"1.0","name":"Plant Store","description":"Plants for agents.",
+                "language":"en","localizations":["en"],"operations":[
+                {"authentication":"not-required","name":"get-offering"},
+                {"authentication":"not-required","name":"list-offerings"}],
+                "http":{"endpoint_base":"/odp"},"protocols":{
+                "enrollment":[{"name":"future-enrollment"},{"name":"aep"}],
+                "payments":[{"authentication":"not-required","name":"future-payment"},
+                {"authentication":"not-required","name":"mpp"}],
+                "trust":[{"name":"future-trust"},{"name":"tap"}]}}
+                """);
+
+        ServiceDocument.Protocols protocols = OdpServiceClient.create(URI.create("https://plants.example"), transport)
+                .inspection()
+                .document()
+                .protocols();
+
+        assertEquals(List.of(new ServiceDocument.EnrollmentProtocol("aep")), protocols.enrollment());
+        assertEquals(List.of(new ServiceDocument.TrustProtocol("tap")), protocols.trust());
+        assertEquals(1, protocols.payments().size());
     }
 
     private static HttpResponse<byte[]> response(HttpRequest request, String body) {

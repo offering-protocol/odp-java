@@ -9,9 +9,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import org.offeringprotocol.odp.core.OdpJsonNode;
 import org.offeringprotocol.odp.core.OdpUris;
 import org.offeringprotocol.odp.core.Offering;
-import tools.jackson.databind.JsonNode;
 
 final class ActionResolver {
     private static final int EXPECTED_OPERATION_COUNT = 1;
@@ -59,13 +59,13 @@ final class ActionResolver {
                 return new ResolvedAction(action, null, null, null);
             }
             URI reference = OdpUris.resolveResourceReference(request.schema().url(), serviceOrigin);
-            JsonNode schema = schemaResolver.resolve(reference).document();
+            OdpJsonNode schema = schemaResolver.resolve(reference).document();
             return new ResolvedAction(action, schema, null, null);
         }
         if (action.openapi() == null) {
             throw new IllegalStateException("ODP Action has no usable target");
         }
-        JsonNode document = supportingClient.get(
+        OdpJsonNode document = supportingClient.get(
                 URI.create(action.openapi().url()),
                 "application/vnd.oai.openapi+json;version=3.1, application/json;q=0.9",
                 Set.of("application/vnd.oai.openapi+json", "application/json"),
@@ -75,7 +75,7 @@ final class ActionResolver {
         if (!OPENAPI_VERSION.matcher(version).matches()) {
             throw new IllegalStateException("ODP Action requires an OpenAPI 3.1 document");
         }
-        List<JsonNode> operations = findOperations(document, action.openapi().operationId());
+        List<OdpJsonNode> operations = findOperations(document, action.openapi().operationId());
         if (operations.size() != EXPECTED_OPERATION_COUNT) {
             throw new IllegalStateException(
                     "ODP Action operation_id " + action.openapi().operationId() + " must resolve exactly once");
@@ -121,13 +121,13 @@ final class ActionResolver {
                         target.toString(), action.openapi().operationId()));
     }
 
-    private static List<JsonNode> findOperations(JsonNode document, String operationId) {
-        JsonNode paths = document.get("paths");
+    private static List<OdpJsonNode> findOperations(OdpJsonNode document, String operationId) {
+        OdpJsonNode paths = document.get("paths");
         if (paths == null || !paths.isObject()) {
             throw new IllegalStateException("ODP OpenAPI document must contain paths");
         }
-        List<JsonNode> matches = new ArrayList<>();
-        for (JsonNode path : paths) {
+        List<OdpJsonNode> matches = new ArrayList<>();
+        for (OdpJsonNode path : paths) {
             if (!path.isObject()) {
                 continue;
             }

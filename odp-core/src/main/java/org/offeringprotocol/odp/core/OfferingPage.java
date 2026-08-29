@@ -5,7 +5,6 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
-import tools.jackson.databind.JsonNode;
 
 public record OfferingPage(
         @JsonProperty("auth_expands") Boolean authExpands,
@@ -13,7 +12,7 @@ public record OfferingPage(
         List<Offering> items,
         String next,
         List<RefinementGroup> refinements,
-        @JsonAnySetter @JsonAnyGetter Map<String, JsonNode> additional) {
+        @JsonAnySetter @JsonAnyGetter Map<String, OdpJsonNode> additional) {
     public OfferingPage {
         items = List.copyOf(items);
         refinements = Copies.list(refinements);
@@ -27,7 +26,7 @@ public record OfferingPage(
     }
 
     public record RefinementBucket(
-            JsonNode value,
+            OdpJsonNode value,
             long count,
             @JsonProperty("count_relation") String countRelation) {
         public RefinementBucket {

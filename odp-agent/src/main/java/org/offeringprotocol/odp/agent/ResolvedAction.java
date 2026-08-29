@@ -1,9 +1,9 @@
 package org.offeringprotocol.odp.agent;
 
-import tools.jackson.databind.JsonNode;
+import org.offeringprotocol.odp.core.OdpJsonNode;
 
 public record ResolvedAction(
-        DiscoveredAction action, JsonNode requestSchema, JsonNode openApiDocument, JsonNode operation) {
+        DiscoveredAction action, OdpJsonNode requestSchema, OdpJsonNode openApiDocument, OdpJsonNode operation) {
     public ResolvedAction {
         requestSchema = copy(requestSchema);
         openApiDocument = copy(openApiDocument);
@@ -11,21 +11,21 @@ public record ResolvedAction(
     }
 
     @Override
-    public JsonNode requestSchema() {
+    public OdpJsonNode requestSchema() {
         return copy(requestSchema);
     }
 
     @Override
-    public JsonNode openApiDocument() {
+    public OdpJsonNode openApiDocument() {
         return copy(openApiDocument);
     }
 
     @Override
-    public JsonNode operation() {
+    public OdpJsonNode operation() {
         return copy(operation);
     }
 
-    private static JsonNode copy(JsonNode value) {
+    private static OdpJsonNode copy(OdpJsonNode value) {
         return value == null ? null : value.deepCopy();
     }
 }

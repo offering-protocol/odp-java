@@ -13,13 +13,22 @@ Service's Collections and Offerings with [`odp-agent`](../odp-agent/README.md).
 <dependency>
   <groupId>org.offeringprotocol</groupId>
   <artifactId>odp-directory</artifactId>
-  <version>0.1.1</version>
+  <version>0.2.0</version>
+</dependency>
+<dependency>
+  <groupId>org.offeringprotocol</groupId>
+  <artifactId>odp-json-jackson2</artifactId>
+  <version>0.2.0</version>
 </dependency>
 ```
 
 ```kotlin
-implementation("org.offeringprotocol:odp-directory:0.1.1")
+implementation("org.offeringprotocol:odp-directory:0.2.0")
+implementation("org.offeringprotocol:odp-json-jackson2:0.2.0")
 ```
+
+Replace `odp-json-jackson2` with `odp-json-jackson3` in a Jackson 3 application. Add exactly one
+provider; it is discovered automatically at runtime.
 
 ## Search Services
 
@@ -58,6 +67,9 @@ advertises that payment protocol.
 The response includes structured facets for enrollment protocols, keywords, operations, payment
 protocols, and payment options. Use them to refine a user or Agent query without downloading a
 global vocabulary.
+
+Compatible results may advertise protocol names unknown to this library. The client filters those
+descriptors and preserves recognized enrollment, payment, and trust descriptors, including TAP.
 
 ## Continue a search
 

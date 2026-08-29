@@ -16,6 +16,7 @@ import java.util.Objects;
 import org.offeringprotocol.odp.core.Collection;
 import org.offeringprotocol.odp.core.Odp;
 import org.offeringprotocol.odp.core.OdpJson;
+import org.offeringprotocol.odp.core.OdpJsonNode;
 import org.offeringprotocol.odp.core.OdpOperation;
 import org.offeringprotocol.odp.core.OdpUris;
 import org.offeringprotocol.odp.core.Offering;
@@ -24,15 +25,12 @@ import org.offeringprotocol.odp.core.OperationDescriptor;
 import org.offeringprotocol.odp.core.Page;
 import org.offeringprotocol.odp.core.ProblemDetails;
 import org.offeringprotocol.odp.core.SearchRequests;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.json.JsonMapper;
 
 /** Validated ODP Service inspection and catalog client. */
 public final class OdpServiceClient {
     private static final int MAXIMUM_BYTES = 2_097_152;
     private static final int MAXIMUM_REDIRECTS = 5;
     private static final String GET = "GET";
-    private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final HttpClient DEFAULT_HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .followRedirects(HttpClient.Redirect.NEVER)
@@ -76,7 +74,7 @@ public final class OdpServiceClient {
         String origin = OdpUris.deriveServiceOrigin(serviceUri);
         URI documentUri = URI.create(origin).resolve(Odp.SERVICE_DOCUMENT_PATH);
         String json = request(transport, documentUri, GET, null, null, 524_288);
-        var document = OdpJson.parseServiceDocument(json);
+        var document = OdpJson.parseAgentServiceDocument(json);
         Map<OdpOperation, OperationDescriptor> operations = new LinkedHashMap<>();
         for (OperationDescriptor operation : document.operations()) {
             operations.put(operation.name(), operation);
@@ -107,7 +105,7 @@ public final class OdpServiceClient {
     }
 
     public Collection getCollection(String id, String representation, String language) {
-        return OdpJson.parseCollection(
+        return parseAgentCollection(
                 requestOperation(OdpOperation.GET_COLLECTION, id, representation, null, language, null));
     }
 
@@ -122,14 +120,14 @@ public final class OdpServiceClient {
     }
 
     public OfferingPage searchOfferings(SearchRequests.Offerings request, String representation, String language) {
-        OfferingPage page = OdpJson.parseOfferingSearchResponse(requestOperation(
+        OfferingPage page = parseAgentOfferingSearchResponse(requestOperation(
                 OdpOperation.SEARCH_OFFERINGS, null, representation, null, language, OdpJson.write(request)));
         page.items().forEach(item -> requireSummary(item.id(), item.name(), "Offering"));
         return page;
     }
 
     public Offering getOffering(String id, String representation, String language) {
-        return OdpJson.parseOffering(
+        return parseAgentOffering(
                 requestOperation(OdpOperation.GET_OFFERING, id, representation, null, language, null));
     }
 
@@ -142,7 +140,7 @@ public final class OdpServiceClient {
                 actionResolver.normalize(offering.actions(), serviceOrigin, serviceOpenApiUrl);
         List<OfferingIssue> issues = new ArrayList<>(normalized.issues());
         Offering safeOffering = offering;
-        tools.jackson.databind.JsonNode attributeSchema = null;
+        OdpJsonNode attributeSchema = null;
         if (offering.schema() != null) {
             try {
                 URI reference =
@@ -210,13 +208,13 @@ public final class OdpServiceClient {
     }
 
     private static Page<Collection> collectionPage(String json) {
-        Page<Collection> page = OdpJson.parsePage(json, Collection.class);
+        Page<Collection> page = parseAgentCollectionPage(json);
         page.items().forEach(item -> requireSummary(item.id(), item.name(), "Collection"));
         return page;
     }
 
     private static Page<Offering> offeringPage(String json) {
-        Page<Offering> page = OdpJson.parsePage(json, Offering.class);
+        Page<Offering> page = parseAgentOfferingPage(json);
         page.items().forEach(item -> requireSummary(item.id(), item.name(), "Offering"));
         return page;
     }
@@ -228,13 +226,29 @@ public final class OdpServiceClient {
     }
 
     private static Offering withoutAttributes(Offering offering) {
-        try {
-            var document = JSON.readTree(OdpJson.write(offering)).asObject();
-            document.remove("attributes");
-            return OdpJson.parseOffering(document.toString());
-        } catch (JacksonException exception) {
-            throw new IllegalStateException("Unable to normalize ODP Offering", exception);
-        }
+        OdpJsonNode document = OdpJson.valueToTree(offering);
+        document.remove("attributes");
+        return parseAgentOffering(document.toString());
+    }
+
+    private static Collection parseAgentCollection(String json) {
+        return OdpJson.parseCollection(OdpJson.normalizeAgentResponse(json, "collection"));
+    }
+
+    private static Offering parseAgentOffering(String json) {
+        return OdpJson.parseOffering(OdpJson.normalizeAgentResponse(json, "offering"));
+    }
+
+    private static Page<Collection> parseAgentCollectionPage(String json) {
+        return OdpJson.parsePage(OdpJson.normalizeAgentResponse(json, "collection-page"), Collection.class);
+    }
+
+    private static Page<Offering> parseAgentOfferingPage(String json) {
+        return OdpJson.parsePage(OdpJson.normalizeAgentResponse(json, "offering-page"), Offering.class);
+    }
+
+    private static OfferingPage parseAgentOfferingSearchResponse(String json) {
+        return OdpJson.parseOfferingSearchResponse(OdpJson.normalizeAgentResponse(json, "offering-page"));
     }
 
     private static String request(
@@ -291,7 +305,7 @@ public final class OdpServiceClient {
                 if (status < 200 || status > 299) {
                     ProblemDetails problem = null;
                     try {
-                        problem = OdpJson.parseProblemDetails(text);
+                        problem = OdpJson.parseProblemDetails(OdpJson.normalizeAgentResponse(text, "problem"));
                     } catch (IllegalArgumentException ignored) {
                         // The HTTP status remains available when a peer does not return ODP Problem Details.
                     }

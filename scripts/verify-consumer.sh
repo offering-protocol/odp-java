@@ -31,7 +31,7 @@ if [ "${ODP_CONSUMER_SOURCE:-local}" = "local" ]; then
   }
 
   install_artifact "$root/pom.xml" "$root/pom.xml"
-  for artifact in odp-core odp-directory odp-agent odp-service; do
+  for artifact in odp-core odp-json-jackson2 odp-directory odp-agent odp-service; do
     install_artifact \
       "$root/$artifact/target/$artifact-$version.jar" \
       "$root/$artifact/pom.xml"

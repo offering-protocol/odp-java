@@ -5,7 +5,6 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
-import tools.jackson.databind.JsonNode;
 
 public record ProblemDetails(
         String type,
@@ -15,7 +14,7 @@ public record ProblemDetails(
         String detail,
         String instance,
         @JsonProperty("invalid_params") List<InvalidParameter> invalidParams,
-        @JsonAnySetter @JsonAnyGetter Map<String, JsonNode> additional) {
+        @JsonAnySetter @JsonAnyGetter Map<String, OdpJsonNode> additional) {
     public ProblemDetails {
         invalidParams = Copies.list(invalidParams);
         additional = Copies.nodes(additional);
