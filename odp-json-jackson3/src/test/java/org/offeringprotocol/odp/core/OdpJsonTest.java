@@ -122,6 +122,20 @@ class OdpJsonTest {
     }
 
     @Test
+    void rejectsProblemTypesThatDoNotCorrespondToTheCode() {
+        String problem = """
+                {
+                  "code":"NOT_FOUND",
+                  "status":404,
+                  "title":"Not found",
+                  "type":"https://offeringprotocol.org/problems/validation-failed"
+                }
+                """;
+
+        assertThrows(OdpValidationException.class, () -> OdpJson.parseProblemDetails(problem));
+    }
+
+    @Test
     void enforcesServiceDocumentSemanticConstraints() {
         String duplicateLocalization =
                 DOCUMENT.replace("\"localizations\":[\"en\"]", "\"localizations\":[\"en\",\"EN\"]");

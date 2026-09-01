@@ -403,7 +403,13 @@ public final class OdpJson {
     }
 
     public static ProblemDetails parseProblemDetails(String json) {
-        return parse(json, "problem-details.schema.json", "Problem Details", ProblemDetails.class);
+        ProblemDetails problem = parse(json, "problem-details.schema.json", "Problem Details", ProblemDetails.class);
+        String expectedType = "https://offeringprotocol.org/problems/"
+                + problem.code().toLowerCase(Locale.ROOT).replace('_', '-');
+        if (!expectedType.equals(problem.type())) {
+            throw semanticError("Problem Details", "type must correspond to the problem code", "/type");
+        }
+        return problem;
     }
 
     public static SearchRequests.Collections parseCollectionSearchRequest(String json) {
