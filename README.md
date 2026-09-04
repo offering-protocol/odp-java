@@ -25,6 +25,7 @@ Choose the module that matches the role your application implements:
 | An ODP Service                              | [`odp-service`](./odp-service/README.md)     | Service document, fixed routes, static or storage-backed operations |
 | A directory-only integration                | [`odp-directory`](./odp-directory/README.md) | Canonical production or sandbox Service search                      |
 | An ODP validator or protocol implementation | [`odp-core`](./odp-core/README.md)           | Models, bundled schemas, identity, references, and pagination       |
+| Compatible ODP dependency versions          | [`odp-bom`](./odp-bom/README.md)             | Version alignment without a parent-POM relationship                 |
 
 Every application also selects one JSON provider: `odp-json-jackson2` for applications using
 Jackson 2, or `odp-json-jackson3` for applications using Jackson 3. The role modules do not force a
@@ -39,18 +40,32 @@ directory behavior.
 
 ## Installation
 
+Import `odp-bom` once to keep every explicitly selected ODP module on a compatible release:
+
+```xml
+<dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>org.offeringprotocol</groupId>
+      <artifactId>odp-bom</artifactId>
+      <version>0.2.1</version>
+      <type>pom</type>
+      <scope>import</scope>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
+```
+
 For an Agent application:
 
 ```xml
 <dependency>
   <groupId>org.offeringprotocol</groupId>
   <artifactId>odp-agent</artifactId>
-  <version>0.2.0</version>
 </dependency>
 <dependency>
   <groupId>org.offeringprotocol</groupId>
   <artifactId>odp-json-jackson2</artifactId>
-  <version>0.2.0</version>
 </dependency>
 ```
 
@@ -60,21 +75,27 @@ For a Service integration:
 <dependency>
   <groupId>org.offeringprotocol</groupId>
   <artifactId>odp-service</artifactId>
-  <version>0.2.0</version>
 </dependency>
 <dependency>
   <groupId>org.offeringprotocol</groupId>
   <artifactId>odp-json-jackson2</artifactId>
-  <version>0.2.0</version>
 </dependency>
 ```
 
 Gradle uses the same coordinates:
 
 ```kotlin
-implementation("org.offeringprotocol:odp-agent:0.2.0")
-implementation("org.offeringprotocol:odp-json-jackson2:0.2.0")
+implementation(platform("org.offeringprotocol:odp-bom:0.2.1"))
+implementation("org.offeringprotocol:odp-agent")
+implementation("org.offeringprotocol:odp-json-jackson2")
 ```
+
+The BOM manages ODP module versions only. It does not add modules, select a Jackson generation, or
+manage Jackson itself. Applications select the role modules they use and exactly one JSON provider.
+
+Consumers that prefer direct versions can omit the BOM and specify the same ODP release on each
+dependency, for example `org.offeringprotocol:odp-agent:0.2.1` and
+`org.offeringprotocol:odp-json-jackson2:0.2.1`.
 
 Replace `odp-json-jackson2` with `odp-json-jackson3` when the application uses Jackson 3. Exactly
 one provider must be present at runtime; `OdpJson` discovers it through Java `ServiceLoader`.
@@ -195,6 +216,7 @@ Verify the published module boundaries from an isolated consumer project with:
 
 ```sh
 ./scripts/verify-consumer.sh
+./scripts/verify-gradle-consumer.sh
 ```
 
 Format Java sources with:

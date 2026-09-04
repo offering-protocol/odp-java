@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>org.offeringprotocol.example</groupId>
-  <artifactId>odp-java-consumer</artifactId>
+  <artifactId>odp-java-direct-version-consumer</artifactId>
   <version>1.0.0</version>
 
   <properties>
@@ -14,42 +14,36 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>org.offeringprotocol</groupId>
-        <artifactId>odp-bom</artifactId>
-        <version>${odp.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
-
   <dependencies>
     <dependency>
       <groupId>org.offeringprotocol</groupId>
       <artifactId>odp-json-jackson2</artifactId>
+      <version>${odp.version}</version>
     </dependency>
     <dependency>
       <groupId>org.offeringprotocol</groupId>
       <artifactId>odp-core</artifactId>
+      <version>${odp.version}</version>
     </dependency>
     <dependency>
       <groupId>org.offeringprotocol</groupId>
       <artifactId>odp-directory</artifactId>
+      <version>${odp.version}</version>
     </dependency>
     <dependency>
       <groupId>org.offeringprotocol</groupId>
       <artifactId>odp-agent</artifactId>
+      <version>${odp.version}</version>
     </dependency>
     <dependency>
       <groupId>org.offeringprotocol</groupId>
       <artifactId>odp-service</artifactId>
+      <version>${odp.version}</version>
     </dependency>
   </dependencies>
 
   <build>
+    <sourceDirectory>../consumer/src/main/java</sourceDirectory>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

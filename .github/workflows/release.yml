@@ -77,6 +77,11 @@ jobs:
           server-username-env-var: CENTRAL_USERNAME
           server-password-env-var: CENTRAL_PASSWORD
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "9.5.1"
+
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -103,8 +108,14 @@ jobs:
         env:
           ODP_NODE_DIR: .conformance/odp-node
 
-      - name: Verify clean consumer
+      - name: Verify clean Maven consumers
         run: ./scripts/verify-consumer.sh
+
+      - name: Verify clean Gradle consumer
+        run: ./scripts/verify-gradle-consumer.sh
+
+      - name: Inspect release artifacts
+        run: ./scripts/verify-release-artifacts.sh
 
       - name: Publish Maven artifacts
         if: steps.release.outputs.published != 'true'
@@ -120,15 +131,18 @@ jobs:
         with:
           subject-path: |
             odp-core/target/odp-core-${{ steps.release.outputs.version }}*.jar
+            odp-json-jackson2/target/odp-json-jackson2-${{ steps.release.outputs.version }}*.jar
+            odp-json-jackson3/target/odp-json-jackson3-${{ steps.release.outputs.version }}*.jar
             odp-directory/target/odp-directory-${{ steps.release.outputs.version }}*.jar
             odp-agent/target/odp-agent-${{ steps.release.outputs.version }}*.jar
             odp-service/target/odp-service-${{ steps.release.outputs.version }}*.jar
+            odp-bom/pom.xml
 
       - name: Wait for Maven Central availability
         env:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
-          artifact="https://repo1.maven.org/maven2/org/offeringprotocol/odp-core/$VERSION/odp-core-$VERSION.pom"
+          artifact="https://repo1.maven.org/maven2/org/offeringprotocol/odp-bom/$VERSION/odp-bom-$VERSION.pom"
           for attempt in {1..60}; do
             if curl --fail --silent --show-error --head "$artifact" >/dev/null; then
               exit 0
@@ -138,8 +152,13 @@ jobs:
           echo "Maven Central did not expose $artifact within 10 minutes." >&2
           exit 1
 
-      - name: Verify Maven Central consumer
+      - name: Verify Maven Central consumers
         run: ./scripts/verify-consumer.sh
+        env:
+          ODP_CONSUMER_SOURCE: central
+
+      - name: Verify Maven Central Gradle consumer
+        run: ./scripts/verify-gradle-consumer.sh
         env:
           ODP_CONSUMER_SOURCE: central
 
@@ -161,6 +180,7 @@ jobs:
           .conformance/reports/agent.json#odp-java-agent-conformance.json
           .conformance/reports/service.json#odp-java-service-conformance.json
           --generate-notes
+          --notes "Published artifacts include org.offeringprotocol:odp-bom for Maven and Gradle dependency alignment."
           --title "ODP Java ${{ steps.release.outputs.tag }}"
           --verify-tag
         env:

@@ -9,23 +9,8 @@ capability checks, Collections, Offerings, localization, and continuations.
 
 ## Install
 
-```xml
-<dependency>
-  <groupId>org.offeringprotocol</groupId>
-  <artifactId>odp-agent</artifactId>
-  <version>0.2.0</version>
-</dependency>
-<dependency>
-  <groupId>org.offeringprotocol</groupId>
-  <artifactId>odp-json-jackson2</artifactId>
-  <version>0.2.0</version>
-</dependency>
-```
-
-```kotlin
-implementation("org.offeringprotocol:odp-agent:0.2.0")
-implementation("org.offeringprotocol:odp-json-jackson2:0.2.0")
-```
+Follow the canonical [installation guide](../README.md#installation), selecting `odp-agent` and
+exactly one JSON provider.
 
 The Agent module brings in `odp-directory` and `odp-core` transitively. Replace
 `odp-json-jackson2` with `odp-json-jackson3` in a Jackson 3 application. Exactly one provider must

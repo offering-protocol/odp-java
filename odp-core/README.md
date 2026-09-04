@@ -9,23 +9,8 @@ ODP models without Agent or Service HTTP behavior.
 
 ## Install
 
-```xml
-<dependency>
-  <groupId>org.offeringprotocol</groupId>
-  <artifactId>odp-core</artifactId>
-  <version>0.2.0</version>
-</dependency>
-<dependency>
-  <groupId>org.offeringprotocol</groupId>
-  <artifactId>odp-json-jackson2</artifactId>
-  <version>0.2.0</version>
-</dependency>
-```
-
-```kotlin
-implementation("org.offeringprotocol:odp-core:0.2.0")
-implementation("org.offeringprotocol:odp-json-jackson2:0.2.0")
-```
+Follow the canonical [installation guide](../README.md#installation), selecting `odp-core` and
+exactly one JSON provider.
 
 Use `odp-json-jackson2` with Jackson 2 applications or replace it with `odp-json-jackson3` for
 Jackson 3. Add exactly one provider. `OdpJson` discovers the provider through Java `ServiceLoader`
