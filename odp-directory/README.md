@@ -9,23 +9,8 @@ Service's Collections and Offerings with [`odp-agent`](../odp-agent/README.md).
 
 ## Install
 
-```xml
-<dependency>
-  <groupId>org.offeringprotocol</groupId>
-  <artifactId>odp-directory</artifactId>
-  <version>0.2.0</version>
-</dependency>
-<dependency>
-  <groupId>org.offeringprotocol</groupId>
-  <artifactId>odp-json-jackson2</artifactId>
-  <version>0.2.0</version>
-</dependency>
-```
-
-```kotlin
-implementation("org.offeringprotocol:odp-directory:0.2.0")
-implementation("org.offeringprotocol:odp-json-jackson2:0.2.0")
-```
+Follow the canonical [installation guide](../README.md#installation), selecting `odp-directory`
+and exactly one JSON provider.
 
 Replace `odp-json-jackson2` with `odp-json-jackson3` in a Jackson 3 application. Add exactly one
 provider; it is discovered automatically at runtime.

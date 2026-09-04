@@ -9,23 +9,8 @@ it does not load, copy, sort, or index a storage-backed catalog.
 
 ## Install
 
-```xml
-<dependency>
-  <groupId>org.offeringprotocol</groupId>
-  <artifactId>odp-service</artifactId>
-  <version>0.2.0</version>
-</dependency>
-<dependency>
-  <groupId>org.offeringprotocol</groupId>
-  <artifactId>odp-json-jackson2</artifactId>
-  <version>0.2.0</version>
-</dependency>
-```
-
-```kotlin
-implementation("org.offeringprotocol:odp-service:0.2.0")
-implementation("org.offeringprotocol:odp-json-jackson2:0.2.0")
-```
+Follow the canonical [installation guide](../README.md#installation), selecting `odp-service` and
+exactly one JSON provider.
 
 The Service module brings in `odp-core` transitively and does not depend on Agent or directory
 behavior. Replace `odp-json-jackson2` with `odp-json-jackson3` in a Jackson 3 application. Exactly

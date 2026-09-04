@@ -1,5 +1,6 @@
 .DS_Store
 .conformance/
+.gradle/
 .idea/
 .project
 .classpath
@@ -7,4 +8,5 @@
 .vscode/
 target/
 **/target/
+**/build/
 *.iml
