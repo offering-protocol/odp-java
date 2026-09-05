@@ -58,7 +58,7 @@
     <jackson-annotations.version>2.22</jackson-annotations.version>
     <jackson2.version>2.22.2</jackson2.version>
     <jackson3.version>3.2.2</jackson3.version>
-    <json-schema-validator2.version>2.0.7</json-schema-validator2.version>
+    <json-schema-validator2.version>3.0.7</json-schema-validator2.version>
     <json-schema-validator3.version>3.0.7</json-schema-validator3.version>
     <jacoco.version>0.8.15</jacoco.version>
     <exec-maven-plugin.version>3.6.3</exec-maven-plugin.version>
