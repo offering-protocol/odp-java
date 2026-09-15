@@ -14,7 +14,10 @@ public final class InteroperabilityAgent {
         if (arguments.length != REQUIRED_ARGUMENTS) {
             throw new IllegalArgumentException("Usage: InteroperabilityAgent SERVICE_URL");
         }
-        OdpServiceClient client = OdpServiceClient.create(URI.create(arguments[0]));
+        OdpServiceClient client = OdpServiceClient.create(
+                URI.create(arguments[0]),
+                OdpServiceClient.localDevelopmentTransport(),
+                OdpServiceClient.localDevelopmentTransport());
         if (client.inspection().document().name().isBlank()) {
             throw new IllegalStateException("Service name is empty");
         }

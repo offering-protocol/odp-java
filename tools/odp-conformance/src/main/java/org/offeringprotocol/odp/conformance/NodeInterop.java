@@ -17,7 +17,10 @@ public final class NodeInterop {
             throw new IllegalArgumentException("Usage: NodeInterop SERVICE_URL");
         }
         String serviceUrl = arguments[0];
-        OdpServiceClient client = OdpServiceClient.create(URI.create(serviceUrl));
+        OdpServiceClient client = OdpServiceClient.create(
+                URI.create(serviceUrl),
+                OdpServiceClient.localDevelopmentTransport(),
+                OdpServiceClient.localDevelopmentTransport());
         if (!"Small Example Store".equals(client.inspection().document().name())) {
             throw new IllegalStateException("Java Agent inspected an unexpected Node.js Service");
         }

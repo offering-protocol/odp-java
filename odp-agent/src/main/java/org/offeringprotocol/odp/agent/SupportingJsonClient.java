@@ -61,7 +61,7 @@ final class SupportingJsonClient {
                 if (!document.isObject()) {
                     throw new IllegalStateException("ODP supporting resource must be a JSON object");
                 }
-                if (depth(document) > maximumDepth) {
+                if (depth(document, maximumDepth) > maximumDepth) {
                     throw new IllegalStateException("ODP supporting resource exceeds its JSON depth limit");
                 }
                 return document;
@@ -89,10 +89,14 @@ final class SupportingJsonClient {
         }
     }
 
-    private static int depth(OdpJsonNode value) {
+    /** Stops descending once the limit is already exceeded, so nesting cannot cost unbounded stack. */
+    private static int depth(OdpJsonNode value, int remaining) {
+        if (remaining <= 0) {
+            return 1;
+        }
         int maximum = 1;
         for (OdpJsonNode child : value) {
-            maximum = Math.max(maximum, 1 + depth(child));
+            maximum = Math.max(maximum, 1 + depth(child, remaining - 1));
         }
         return maximum;
     }
