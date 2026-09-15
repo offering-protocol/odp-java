@@ -43,6 +43,7 @@ public final class SmallService {
                             .filter(offering -> (offering.name() + " " + offering.description())
                                     .toLowerCase(Locale.ROOT)
                                     .contains(normalized))
+                            .map(offering -> embedded(offering, "full".equals(request.representation())))
                             .toList();
                     return new Page<>(null, Odp.VERSION, matches, null, Map.of());
                 }));
@@ -76,15 +77,20 @@ public final class SmallService {
     private static void handle(OdpService service, HttpExchange exchange) throws IOException {
         OdpHttpRequest request = new OdpHttpRequest(
                 exchange.getRequestMethod(),
-                exchange.getRequestURI().getPath(),
+                // The Service reads a decoded path, so a percent-encoded segment is decoded here.
+                URLDecoder.decode(exchange.getRequestURI().getRawPath(), StandardCharsets.UTF_8),
                 query(exchange.getRequestURI().getRawQuery()),
                 exchange.getRequestHeaders(),
                 new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
         OdpHttpResponse response = service.handle(request);
         response.headers().forEach(exchange.getResponseHeaders()::set);
         byte[] body = response.body().getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(response.status(), body.length);
-        exchange.getResponseBody().write(body);
+        // This server writes Content-Length itself, and a 304 or a HEAD carries no body at all.
+        exchange.getResponseHeaders().remove("Content-Length");
+        exchange.sendResponseHeaders(response.status(), body.length == 0 ? -1 : body.length);
+        if (body.length > 0) {
+            exchange.getResponseBody().write(body);
+        }
         exchange.close();
         System.out.printf( // NOPMD - Request logging makes the example observable.
                 "%s %s -> %d%n", request.method(), exchange.getRequestURI(), response.status());
@@ -102,6 +108,31 @@ public final class SmallService {
             result.computeIfAbsent(name, ignored -> new ArrayList<>()).add(value);
         }
         return result;
+    }
+
+    /**
+     * One item of a search page. VER-04: it inherits the version of the page carrying it, so it does
+     * not restate one. OFR-55: a Terse Offering advertises its Actions through {@code detail_fields}
+     * rather than carrying them.
+     */
+    private static Offering embedded(Offering value, boolean full) {
+        return new Offering(
+                value.authExpands(),
+                null,
+                value.id(),
+                value.name(),
+                value.description(),
+                value.images(),
+                value.language(),
+                value.localizations(),
+                value.webUrl(),
+                value.collectionIds(),
+                value.price(),
+                value.schema(),
+                value.attributes(),
+                full ? value.actions() : null,
+                full || value.actions() == null ? null : List.of("/actions"),
+                value.additional());
     }
 
     private static Collection collection() {

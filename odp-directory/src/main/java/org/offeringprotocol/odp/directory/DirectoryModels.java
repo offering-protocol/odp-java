@@ -116,13 +116,18 @@ public interface DirectoryModels {
         }
     }
 
+    /** A result the client could not use, and why. Its index is the position in the page as sent. */
+    public record Issue(int index, String message) {}
+
     public record SearchPage(
             List<Service> items,
             String next,
             Facets facets,
+            List<Issue> issues,
             @JsonAnySetter @JsonAnyGetter Map<String, OdpJsonNode> additional) {
         public SearchPage {
             items = items == null ? List.of() : List.copyOf(items);
+            issues = issues == null ? List.of() : List.copyOf(issues);
             additional = additional == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(additional));
         }
     }

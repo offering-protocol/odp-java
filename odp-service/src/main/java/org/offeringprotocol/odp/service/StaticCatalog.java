@@ -9,6 +9,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -24,6 +25,10 @@ public final class StaticCatalog {
     private static final int MINIMUM_KEY_BYTES = 32;
     private static final int CURSOR_PARTS = 2;
     private static final int CURSOR_VALUES = 5;
+    private static final int DEFAULT_PAGE_ITEMS = 50;
+    /** PAG-19: a continuation stays usable for at least an hour after it is issued. */
+    private static final long CONTINUATION_SECONDS = 3_600;
+
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private StaticCatalog() {}
@@ -37,6 +42,9 @@ public final class StaticCatalog {
 
     public static Map<OdpOperation, OdpService.Endpoint> create(
             List<Offering> offerings, List<Collection> collections, byte[] continuationKey) {
+        Objects.requireNonNull(offerings, "offerings");
+        Objects.requireNonNull(collections, "collections");
+        Objects.requireNonNull(continuationKey, "continuationKey");
         if (continuationKey.length < MINIMUM_KEY_BYTES) {
             throw new IllegalArgumentException("continuationKey must contain at least 32 bytes");
         }
@@ -48,7 +56,12 @@ public final class StaticCatalog {
         Map<OdpOperation, OdpService.Endpoint> handlers = new LinkedHashMap<>();
         handlers.put(
                 OdpOperation.LIST_OFFERINGS,
-                endpoint(request -> page(catalogOfferings, request, StaticCatalog::terseOfferingItem, key)));
+                endpoint(request -> page(
+                        catalogOfferings,
+                        request,
+                        StaticCatalog::terseOfferingItem,
+                        StaticCatalog::fullOfferingItem,
+                        key)));
         handlers.put(
                 OdpOperation.GET_OFFERING,
                 endpoint(request ->
@@ -56,7 +69,12 @@ public final class StaticCatalog {
         if (!catalogCollections.isEmpty()) {
             handlers.put(
                     OdpOperation.LIST_COLLECTIONS,
-                    endpoint(request -> page(catalogCollections, request, StaticCatalog::terseCollectionItem, key)));
+                    endpoint(request -> page(
+                            catalogCollections,
+                            request,
+                            StaticCatalog::terseCollectionItem,
+                            StaticCatalog::fullCollectionItem,
+                            key)));
             handlers.put(
                     OdpOperation.GET_COLLECTION,
                     endpoint(request -> represent(
@@ -69,7 +87,7 @@ public final class StaticCatalog {
                         .filter(offering -> offering.collectionIds() != null
                                 && offering.collectionIds().contains(request.identifier()))
                         .toList();
-                return page(matches, request, StaticCatalog::terseOfferingItem, key);
+                return page(matches, request, StaticCatalog::terseOfferingItem, StaticCatalog::fullOfferingItem, key);
             }));
         }
         return Map.copyOf(handlers);
@@ -80,13 +98,17 @@ public final class StaticCatalog {
     }
 
     private static <T> Page<T> page(
-            List<T> values, CatalogRequest request, Function<T, T> terseRepresentation, byte[] continuationKey) {
-        int limit = request.limit() == null ? 50 : request.limit();
+            List<T> values,
+            CatalogRequest request,
+            Function<T, T> terseItem,
+            Function<T, T> fullItem,
+            byte[] continuationKey) {
+        int limit = request.limit() == null ? DEFAULT_PAGE_ITEMS : request.limit();
         int offset = request.cursor() == null ? 0 : decodeCursor(request.cursor(), request, limit, continuationKey);
         List<T> items = values.stream()
                 .skip(offset)
                 .limit(limit)
-                .map(value -> "full".equals(request.representation()) ? value : terseRepresentation.apply(value))
+                .map(value -> "full".equals(request.representation()) ? fullItem.apply(value) : terseItem.apply(value))
                 .toList();
         int nextOffset = offset + items.size();
         String next = nextOffset >= values.size()
@@ -100,7 +122,7 @@ public final class StaticCatalog {
     private static String encodeCursor(int offset, CatalogRequest request, int limit, byte[] continuationKey) {
         String payload = Base64.getUrlEncoder()
                 .withoutPadding()
-                .encodeToString((Instant.now().plusSeconds(3600).getEpochSecond() + "\n" + offset + "\n" + limit + "\n"
+                .encodeToString((expiry(Instant.now()) + "\n" + offset + "\n" + limit + "\n"
                                 + request.representation() + "\n"
                                 + request.request().path())
                         .getBytes(StandardCharsets.UTF_8));
@@ -142,6 +164,16 @@ public final class StaticCatalog {
         }
     }
 
+    /**
+     * When a continuation stops working. The instant is rounded to the hour and then advanced two
+     * hours, so every continuation lasts at least the hour PAG-19 requires and the value is the same
+     * for every cursor issued in that hour rather than a record of when this one was handed out.
+     */
+    private static long expiry(Instant now) {
+        long hour = Math.floorDiv(now.getEpochSecond(), CONTINUATION_SECONDS);
+        return (hour + 2) * CONTINUATION_SECONDS;
+    }
+
     private static byte[] sign(String payload, byte[] key) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
@@ -157,9 +189,7 @@ public final class StaticCatalog {
     }
 
     private static OdpServiceException expiredCursor(Throwable cause) {
-        OdpServiceException exception = expiredCursor();
-        exception.initCause(cause);
-        return exception;
+        return new OdpServiceException(410, "CONTINUATION_EXPIRED", "Continuation is unavailable", cause);
     }
 
     private static <T> T represent(T value, CatalogRequest request, Function<T, T> terseRepresentation) {
@@ -175,6 +205,27 @@ public final class StaticCatalog {
 
     private static Offering terseOfferingItem(Offering value) {
         return terseOffering(value, true);
+    }
+
+    /** VER-04: an item in a page inherits the version of the page, so it does not carry its own. */
+    private static Offering fullOfferingItem(Offering value) {
+        return new Offering(
+                value.authExpands(),
+                null,
+                value.id(),
+                value.name(),
+                value.description(),
+                value.images(),
+                value.language(),
+                value.localizations(),
+                value.webUrl(),
+                value.collectionIds(),
+                value.price(),
+                value.schema(),
+                value.attributes(),
+                value.actions(),
+                value.detailFields(),
+                value.additional());
     }
 
     private static Offering terseOffering(Offering value, boolean embedded) {
@@ -205,6 +256,23 @@ public final class StaticCatalog {
         return terseCollection(value, true);
     }
 
+    private static Collection fullCollectionItem(Collection value) {
+        return new Collection(
+                value.authExpands(),
+                null,
+                value.id(),
+                value.name(),
+                value.description(),
+                value.images(),
+                value.language(),
+                value.localizations(),
+                value.parentIds(),
+                value.webUrl(),
+                value.searchCapabilities(),
+                value.detailFields(),
+                value.additional());
+    }
+
     private static Collection terseCollection(Collection value, boolean embedded) {
         return new Collection(
                 value.authExpands(),
@@ -225,7 +293,11 @@ public final class StaticCatalog {
     private static <T> Map<String, T> unique(List<T> values, Function<T, String> identifier, String resourceType) {
         Map<String, T> result = new LinkedHashMap<>();
         for (T value : values) {
-            if (result.put(identifier.apply(value), value) != null) {
+            String id = identifier.apply(value);
+            if (id == null) {
+                throw new IllegalArgumentException(resourceType + " identifiers must be present");
+            }
+            if (result.put(id, value) != null) {
                 throw new IllegalArgumentException(resourceType + " identifiers must be unique");
             }
         }
