@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.networknt.schema.InputFormat;
 import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaLocation;
@@ -247,6 +248,7 @@ public final class Jackson2JsonProvider implements OdpJsonProvider {
                 .addMixIn(ServiceDocument.class, ServiceDocumentMixin.class)
                 .addMixIn(ServiceDocument.Builder.class, BuilderMixin.class)
                 .registerModule(module)
+                .registerModule(new JavaTimeModule())
                 .setSerializationInclusion(JsonInclude.Include.NON_NULL);
     }
 

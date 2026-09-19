@@ -1,8 +1,7 @@
 # ODP Directory
 
-The official Java client for discovering candidate Services through the one canonical ODP
-directory. It searches cached Service metadata; it does not search the complete catalogs owned by
-those Services.
+The official Java client for discovering indexed Services and submitted Collections through the
+canonical Directory. It does not crawl catalogs or index Offerings.
 
 After directory discovery, an Agent inspects each candidate's live ODP document and queries the
 Service's Collections and Offerings with [`odp-agent`](../odp-agent/README.md).
@@ -15,7 +14,53 @@ and exactly one JSON provider.
 Replace `odp-json-jackson2` with `odp-json-jackson3` in a Jackson 3 application. Add exactly one
 provider; it is discovered automatically at runtime.
 
-## Search Services
+## Search Services and Collections
+
+```java
+DirectoryClient directory = DirectoryClient.create();
+DirectoryModels.SearchResponse response = directory.search(
+        new DirectoryModels.ResourceSearchRequest("weather forecast", null, 25, null));
+
+for (DirectoryModels.Result result : response.items()) {
+    if (result instanceof DirectoryModels.ServiceResult service) {
+        System.out.printf("Service: %s (%s)%n", service.service().name(), service.service().serviceOrigin());
+    } else if (result instanceof DirectoryModels.CollectionResult collection) {
+        System.out.printf("Collection: %s, ID %s, through %s%n",
+                collection.collection().name(), collection.collection().id(), collection.service().serviceOrigin());
+    } else if (result instanceof DirectoryModels.UnknownResult unknown) {
+        System.out.printf("Unsupported result type: %s%n", unknown.type());
+    }
+}
+```
+
+The fourth request argument is an optional list of `"service"` and/or `"collection"`; null selects
+both. Explicit lists must be nonempty and distinct. Filters use the owning Service's metadata.
+
+A Collection's identity is its owning Service origin plus its case-sensitive `collection().id()`.
+Inspect that Service's live document and use `OdpServiceClient.getCollection` to retrieve current
+details. `indexedAt()` on the result records Collection freshness, while `service().indexedAt()`
+records the parent's freshness. `service().serviceId()` identifies the local Directory Service.
+For Service results, optional `availableThrough()` identifies a platform. Collection attribution
+is its owning `service()`.
+
+Known types are validated; a malformed item is omitted and reported in `response.issues()` with
+its original index and reason. Other valid items remain available. Unknown future types retain
+their wire type and full JSON in `UnknownResult.raw()`; do not treat them as Services or execute
+their metadata. Additive fields are retained in `additional()` maps. Execution metadata from the
+Directory is not authoritative: obtain current operation paths from the Service itself.
+
+Mixed search returns at most 100 results (the default limit), without continuation. An absent
+`next()` does not promise all matches were returned. Refine the query or filters when needed.
+`continueSearch(next)` supports an opaque same-origin continuation if the server supplies one;
+the SDK never invents a continuation. Each call returns one response, without automatic traversal.
+
+Mixed facets count all matching targets, not just the returned subset: one Service and two
+Collections count as three. Collection search is independent of permission to show its card on
+the Directory landing page.
+
+See the [runnable canonical discovery example](../examples/README.md#canonical-directory-discovery).
+
+## Search only Services
 
 `DirectoryClient.create()` uses the fixed production directory. Search accepts natural-language
 text, deterministic filters, or both.
@@ -71,9 +116,19 @@ The client retrieves continuations with GET, keeps them on the selected canonica
 redirects to five, and bounds response bodies. Applications should impose their own total page and
 item limit when following multiple pages.
 
-## Keyword suggestions
+## Suggestions
 
-Suggestions let an Agent discover useful keyword vocabulary by prefix:
+```java
+List<String> names = directory.suggest("we", 10);
+```
+
+`suggest` matches indexed names, descriptions and keywords, and returns **names of matching
+Services and Collections**, not the text that matched. Despite the `prefix` argument name,
+matching uses substrings and whitespace-separated alternative terms. The server deduplicates
+names and returns at most 25 (also the default). These strings are candidate queries, not resource
+identifiers. They can be passed to `search`. Collection surfacing permission does not restrict them.
+
+`suggestServices` retains Service-only keyword-prefix suggestions:
 
 ```java
 List<String> suggestions = directory.suggestServices("gp", 5);

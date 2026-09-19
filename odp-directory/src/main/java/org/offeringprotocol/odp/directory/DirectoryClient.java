@@ -17,6 +17,7 @@ import org.offeringprotocol.odp.core.ServiceDocument;
 
 /** Client for the canonical ODP directory. */
 public final class DirectoryClient {
+    private static final String METHOD_GET = "GET";
     private static final int MAXIMUM_BYTES = 524_288;
     private static final int MAXIMUM_REDIRECTS = 5;
     private final DirectoryEnvironment selectedEnvironment;
@@ -47,6 +48,16 @@ public final class DirectoryClient {
         return selectedEnvironment;
     }
 
+    public DirectoryModels.SearchResponse search(DirectoryModels.ResourceSearchRequest request) {
+        Objects.requireNonNull(request, "request");
+        return DirectoryResults.decode(
+                send(selectedEnvironment.origin().resolve("/v1/directory/search"), "POST", encode(request)));
+    }
+
+    public DirectoryModels.SearchResponse continueSearch(String next) {
+        return DirectoryResults.decode(send(resolveContinuation(next), METHOD_GET, null));
+    }
+
     public DirectoryModels.SearchPage searchServices(DirectoryModels.SearchRequest request) {
         Objects.requireNonNull(request, "request");
         return decodeSearchPage(
@@ -55,10 +66,18 @@ public final class DirectoryClient {
 
     public DirectoryModels.SearchPage continueSearchServices(String next) {
         URI uri = resolveContinuation(next);
-        return decodeSearchPage(send(uri, "GET", null));
+        return decodeSearchPage(send(uri, METHOD_GET, null));
     }
 
     public List<String> suggestServices(String prefix, Integer limit) {
+        return suggestions("/v1/services/suggestions", prefix, limit);
+    }
+
+    public List<String> suggest(String prefix, Integer limit) {
+        return suggestions("/v1/directory/suggestions", prefix, limit);
+    }
+
+    private List<String> suggestions(String path, String prefix, Integer limit) {
         if (prefix == null || prefix.isBlank() || prefix.length() > 128) {
             throw new IllegalArgumentException("prefix must contain from 1 through 128 characters");
         }
@@ -67,7 +86,7 @@ public final class DirectoryClient {
         }
         String query = "?prefix=" + URLEncoder.encode(prefix, StandardCharsets.UTF_8)
                 + (limit == null ? "" : "&limit=" + limit);
-        String json = send(selectedEnvironment.origin().resolve("/v1/services/suggestions" + query), "GET", null);
+        String json = send(selectedEnvironment.origin().resolve(path + query), METHOD_GET, null);
         try {
             return OdpJson.read(json, DirectoryModels.Suggestions.class).items();
         } catch (IllegalArgumentException exception) {
@@ -111,7 +130,7 @@ public final class DirectoryClient {
                     .orElseThrow(() -> new IllegalStateException("Directory redirect omitted Location"));
             current = requireDirectoryOrigin(current.resolve(location));
             if (status == 303 || ((status == 301 || status == 302) && "POST".equals(currentMethod))) {
-                currentMethod = "GET";
+                currentMethod = METHOD_GET;
                 hasBody = false;
             }
         }
@@ -179,15 +198,19 @@ public final class DirectoryClient {
                 throw new IllegalArgumentException("Directory response is empty");
             }
             DirectoryModels.SearchPage page = OdpJson.treeToValue(value, DirectoryModels.SearchPage.class);
-            if (page.facets() != null
-                    && page.facets().trust().stream()
-                            .anyMatch(facet -> facet.value() == null
-                                    || !"tap".equals(facet.value().name()))) {
-                throw new IllegalArgumentException("Directory trust facets are invalid");
-            }
+            validateFacets(page.facets());
             return page;
         } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException("Directory response is invalid", exception);
+        }
+    }
+
+    static void validateFacets(DirectoryModels.Facets facets) {
+        if (facets != null
+                && facets.trust().stream()
+                        .anyMatch(facet -> facet.value() == null
+                                || !"tap".equals(facet.value().name()))) {
+            throw new IllegalArgumentException("Directory trust facets are invalid");
         }
     }
 

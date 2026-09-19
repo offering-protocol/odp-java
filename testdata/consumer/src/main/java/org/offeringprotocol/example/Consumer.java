@@ -17,6 +17,11 @@ public final class Consumer {
         DirectoryClient directory = DirectoryClient.create();
         OdpAgent agent = new OdpAgent(directory);
         DirectoryModels.SearchRequest request = new DirectoryModels.SearchRequest("plants", null, 10);
+        DirectoryModels.ResourceSearchRequest mixed = new DirectoryModels.ResourceSearchRequest(
+                "weather", null, 10, List.of("service", "collection"));
+        if (!OdpJson.write(mixed).contains("\"types\":[\"service\",\"collection\"]")) {
+            throw new IllegalStateException("Mixed Directory request encoding failed");
+        }
         Offering offering = OdpJson.parseOffering("""
                 {
                   "odp_version": "1.0",

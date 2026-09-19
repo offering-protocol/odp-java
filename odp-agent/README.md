@@ -51,6 +51,12 @@ OdpAgent agent = new OdpAgent(
 
 ## Inspect one Service
 
+For mixed Service/Collection discovery, call `DirectoryClient.search`. A `CollectionResult`
+contains its owning Service origin and remote Collection ID. Inspect that Service and use
+`getCollection` to retrieve current details. `OdpAgent.searchOfferings` remains Service-only;
+it does not treat Collection results as separate Services. See the
+[Directory guide](../odp-directory/README.md#search-services-and-collections) for the mixed API.
+
 Creating a Service client retrieves `/.well-known/odp`, validates the document, and records the
 Service's advertised operations.
 

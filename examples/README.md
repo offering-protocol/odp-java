@@ -81,6 +81,27 @@ Full Offering agent-guide:
 {...}
 ```
 
+## Canonical Directory discovery
+
+[`DirectoryDiscovery.java`](./src/main/java/org/offeringprotocol/odp/examples/DirectoryDiscovery.java)
+uses the real Directory API rather than `MockDirectory`. It requests up to five mixed results,
+prints Service and Collection names, reports unusable items, and retrieves full Collection details
+only after the owning Service advertises anonymous retrieval. It does not enroll, pay or execute
+Actions. Unknown result types are reported without being treated as Services.
+
+```sh
+./mvnw -q -DskipTests install
+./mvnw -q -f examples/pom.xml \
+  -Dexec.mainClass=org.offeringprotocol.odp.examples.DirectoryDiscovery \
+  -Dexec.args='sandbox weather' \
+  org.codehaus.mojo:exec-maven-plugin:3.6.3:java
+```
+
+Use `production weather` for production, or omit the query to browse. The selected Directory must
+provide `/v1/directory/search`; this example cannot run against a deployment without that endpoint.
+The server may return more matches than fit in its bounded response; absence of `next` does not
+mean the catalog was exhausted. Service-only Agent discovery above remains a separate example.
+
 ## From example to application
 
 For an Agent integration:

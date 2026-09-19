@@ -16,6 +16,7 @@
 
   <properties>
     <automatic.module.name>org.offeringprotocol.odp.directory</automatic.module.name>
+    <directory.test.json-provider>odp-json-jackson3</directory.test.json-provider>
   </properties>
 
   <dependencies>
@@ -26,7 +27,7 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>odp-json-jackson3</artifactId>
+      <artifactId>${directory.test.json-provider}</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>

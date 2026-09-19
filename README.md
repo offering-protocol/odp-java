@@ -104,6 +104,13 @@ every ODP module to one project unless they actually implement multiple roles.
 
 ## Agent quick start
 
+For mixed Service/Collection discovery, use `DirectoryClient.search` and `continueSearch`.
+`suggest` returns matching target names. The existing `searchServices`, `continueSearchServices`
+and `suggestServices` remain available for Service-only discovery. See the
+[Directory guide](./odp-directory/README.md) for result types, facets, attribution and the
+100-result mixed-search cap. Each Java search call returns one response; it does not traverse
+continuations automatically.
+
 `OdpAgent` performs two-stage discovery: it searches the canonical directory and then searches the
 live catalogs of matching Services. A Service failure becomes an `IssueEvent` without discarding
 Offerings returned by other Services.

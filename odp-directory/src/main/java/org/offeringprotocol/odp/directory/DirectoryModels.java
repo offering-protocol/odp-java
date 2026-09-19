@@ -17,6 +17,92 @@ import org.offeringprotocol.odp.core.PaymentOption;
 import org.offeringprotocol.odp.core.ServiceDocument;
 
 public interface DirectoryModels {
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public record ResourceSearchRequest(String query, ServiceFilters filters, Integer limit, List<String> types) {
+        public ResourceSearchRequest {
+            if (query != null && (query.isBlank() || query.length() > 512)) {
+                throw new IllegalArgumentException("query must contain from 1 through 512 characters");
+            }
+            if (limit != null && (limit < 1 || limit > 100)) {
+                throw new IllegalArgumentException("limit must be from 1 through 100");
+            }
+            if (types != null) {
+                if (types.isEmpty()
+                        || types.size() > 2
+                        || types.stream().distinct().count() != types.size()
+                        || types.stream().anyMatch(type -> !"service".equals(type) && !"collection".equals(type))) {
+                    throw new IllegalArgumentException("types must contain distinct service or collection values");
+                }
+            }
+            types = types == null ? List.of() : List.copyOf(types);
+        }
+    }
+
+    public sealed interface Result permits ServiceResult, CollectionResult, UnknownResult {
+        String type();
+    }
+
+    public record ServiceResult(
+            Service service, Instant indexedAt, ServiceReference availableThrough, Map<String, OdpJsonNode> additional)
+            implements Result {
+        public ServiceResult {
+            additional = Collections.unmodifiableMap(new LinkedHashMap<>(additional));
+        }
+
+        @Override
+        public String type() {
+            return "service";
+        }
+    }
+
+    public record CollectionResult(
+            Service service, Instant indexedAt, CollectionSummary collection, Map<String, OdpJsonNode> additional)
+            implements Result {
+        public CollectionResult {
+            additional = Collections.unmodifiableMap(new LinkedHashMap<>(additional));
+        }
+
+        @Override
+        public String type() {
+            return "collection";
+        }
+    }
+
+    public record UnknownResult(String type, OdpJsonNode raw) implements Result {
+        public UnknownResult {
+            raw = raw.deepCopy();
+        }
+
+        @Override
+        public OdpJsonNode raw() {
+            return raw.deepCopy();
+        }
+    }
+
+    public record ServiceReference(
+            String serviceId, String serviceOrigin, String name, Map<String, OdpJsonNode> additional) {
+        public ServiceReference {
+            additional = Collections.unmodifiableMap(new LinkedHashMap<>(additional));
+        }
+    }
+
+    public record CollectionSummary(String id, String name, String description, Map<String, OdpJsonNode> additional) {
+        public CollectionSummary {
+            additional = Collections.unmodifiableMap(new LinkedHashMap<>(additional));
+        }
+    }
+
+    public record Issue(int index, String message) {}
+
+    public record SearchResponse(
+            List<Result> items, String next, Facets facets, List<Issue> issues, Map<String, OdpJsonNode> additional) {
+        public SearchResponse {
+            items = List.copyOf(items);
+            issues = List.copyOf(issues);
+            additional = Collections.unmodifiableMap(new LinkedHashMap<>(additional));
+        }
+    }
+
     public record SearchRequest(String query, ServiceFilters filters, Integer limit) {
         public SearchRequest {
             if (limit != null && (limit < 1 || limit > 100)) {
@@ -83,6 +169,11 @@ public interface DirectoryModels {
             keywords = keywords == null ? List.of() : List.copyOf(keywords);
             operations = operations == null ? List.of() : List.copyOf(operations);
             additional = additional == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(additional));
+        }
+
+        public String serviceId() {
+            OdpJsonNode value = additional.get("service_id");
+            return value == null ? null : value.asString();
         }
     }
 
