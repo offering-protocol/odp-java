@@ -56,7 +56,7 @@
     <jackson-annotations.version>2.22</jackson-annotations.version>
     <jackson2.version>2.22.3</jackson2.version>
     <jackson3.version>3.2.3</jackson3.version>
-    <jacoco.version>0.8.15</jacoco.version>
+    <jacoco.version>0.8.16</jacoco.version>
     <java.version>17</java.version>
     <json-schema-validator2.version>2.0.8</json-schema-validator2.version>
     <json-schema-validator3.version>3.0.7</json-schema-validator3.version>
